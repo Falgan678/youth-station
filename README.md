@@ -13,12 +13,14 @@
 
 ## 🚀 在线预览（一键体验）
 
-[![Open in Cloud Studio](https://cs-res.codehub.cn/common/assets/icon-badge.svg)](https://cloudstudio.net/a/new?repo=https://github.com/Falgan678/youth-station&template=python)
+[![Open in Cloud Studio](https://cs-res.codehub.cn/common/assets/icon-badge.svg)](https://cloudstudio.net/?gitUrl=https%3A%2F%2Fgithub.com%2FFalgan678%2Fyouth-station.git)
 [![Open in Gitpod](https://img.shields.io/badge/Gitpod-Ready--to--Code-908a85?logo=gitpod)](https://gitpod.io/#https://github.com/Falgan678/youth-station)
 [![Open in GitHub Codespaces](https://img.shields.io/badge/Codespaces-Open-blue?logo=github)](https://codespaces.new/Falgan678/youth-station)
 
 > **🎯 推荐 Cloud Studio**（腾讯云出品，国内访问快，免费）：
-> 点击上方按钮 → 自动 clone 仓库 → 配置 .env（填 AI Key）→ 终端跑 `cd web && pip install -r requirements.txt && python app.py` → 看预览端口 5000
+> 点击上方按钮 → 登录腾讯云 → 选择「Python」基础模板 → 自动 clone 仓库 → 配置 `.env`（填 AI Key）→ 终端跑 `cd web && pip install -r requirements.txt && python app.py` → 点右侧"端口转发"打开 5000 预览
+>
+> 如果仍 404，可手动操作：访问 [cloudstudio.net](https://cloudstudio.net) → 工作空间 → 新建 → 选 **「从 Git 仓库导入」** → 粘贴 `https://github.com/Falgan678/youth-station.git`
 
 
 

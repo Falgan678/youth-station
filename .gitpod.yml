@@ -1,0 +1,22 @@
+# Gitpod 自动化配置
+image:
+  file: .gitpod.Dockerfile
+
+tasks:
+  - name: 启动青年驿站
+    init: |
+      cd web
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      cp .env.example .env
+      echo "✅ 依赖已安装"
+      echo "⚠️ 请编辑 web/.env 填入 AI_API_KEY（DeepSeek/智谱等 OpenAI 兼容 Key）"
+    command: |
+      cd web
+      python app.py
+
+ports:
+  - port: 5000
+    visibility: public
+    onOpen: open-preview
+    name: 青年驿站预览

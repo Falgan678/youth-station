@@ -1,0 +1,19 @@
+# Cloud Studio 自动化配置
+# 用户点击 "Open in Cloud Studio" → 自动跑这个流程
+template: python
+container:
+  python: "3.10"
+
+# 工作空间打开后自动执行
+onCreate: |
+  cd web
+  pip install --upgrade pip
+  pip install -r requirements.txt
+  cp .env.example .env
+  echo "✅ 依赖已安装。请编辑 web/.env 填入 AI_API_KEY 和 AMAP_JS_KEY，然后跑 python app.py"
+
+# 端口暴露
+ports:
+  - port: 5000
+    name: youth-station-web
+    onOpen: openPreview

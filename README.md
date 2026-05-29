@@ -11,6 +11,19 @@
 
 ---
 
+## 🚀 在线预览（一键体验）
+
+[![Open in Cloud Studio](https://cs-res.codehub.cn/common/assets/icon-badge.svg)](https://cloudstudio.net/a/new?repo=https://github.com/Falgan678/youth-station&template=python)
+[![Open in Gitpod](https://img.shields.io/badge/Gitpod-Ready--to--Code-908a85?logo=gitpod)](https://gitpod.io/#https://github.com/Falgan678/youth-station)
+[![Open in GitHub Codespaces](https://img.shields.io/badge/Codespaces-Open-blue?logo=github)](https://codespaces.new/Falgan678/youth-station)
+
+> **🎯 推荐 Cloud Studio**（腾讯云出品，国内访问快，免费）：
+> 点击上方按钮 → 自动 clone 仓库 → 配置 .env（填 AI Key）→ 终端跑 `cd web && pip install -r requirements.txt && python app.py` → 看预览端口 5000
+
+
+
+---
+
 ## ✨ 核心功能
 
 ### 🏠 驿站查询

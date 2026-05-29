@@ -72,7 +72,8 @@ function renderList() {
 }
 
 function renderMarkers() {
-  // 清空
+  // 清空旧 marker 和 InfoWindow，避免切换城市/筛选后残留
+  closeInfoWindow();
   markers.forEach(m => map.remove(m));
   markers = [];
   const points = [];
@@ -99,7 +100,15 @@ function renderMarkers() {
 
 let infoWin;
 function openInfoWindow(s) {
-  if (!infoWin) infoWin = new AMap.InfoWindow({ offset: new AMap.Pixel(0, -32) });
+  // 先关掉旧的，强制移除 DOM，避免叠加
+  if (infoWin) {
+    try { infoWin.close(); } catch (e) {}
+  }
+  infoWin = new AMap.InfoWindow({
+    offset: new AMap.Pixel(0, -32),
+    autoMove: true,
+    closeWhenClickMap: true,   // 点地图空白处自动关
+  });
   infoWin.setContent(`
     <div class="iw">
       <h4>${escapeHtml(s.name)}</h4>
@@ -107,6 +116,12 @@ function openInfoWindow(s) {
       <a href="/station/${s.id}" target="_blank">查看详情 / 申请入住 →</a>
     </div>`);
   infoWin.open(map, [s.lng, s.lat]);
+}
+
+function closeInfoWindow() {
+  if (infoWin) {
+    try { infoWin.close(); } catch (e) {}
+  }
 }
 
 function focusStation(id) {

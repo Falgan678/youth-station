@@ -1,0 +1,67 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ doc.title }} - 知识库详情{% endblock %}
+{% block content %}
+<h1 class="page-title">
+  <span class="pt-icon">{{ doc.type_icon() }}</span>
+  {{ doc.title }}
+</h1>
+<p class="page-sub">
+  <a href="{{ url_for('admin_kb') }}" style="color:var(--primary-2);">← 返回知识库列表</a>
+  &nbsp;·&nbsp; {{ doc.type_label() }}
+  {% if doc.category %}&nbsp;·&nbsp; <span class="badge">{{ doc.category }}</span>{% endif %}
+  &nbsp;·&nbsp; 共 <b style="color:var(--cyan);">{{ chunks|length }}</b> 个切块
+  &nbsp;·&nbsp; 状态:
+  {% if doc.status == 'ready' %}<span class="ok">就绪</span>
+  {% elif doc.status == 'failed' %}<span style="color:#ff8b9a;">失败</span>
+  {% else %}<span class="warn">{{ doc.status }}</span>{% endif %}
+</p>
+
+<div class="card">
+  <h3><span style="color:var(--cyan);">✦</span> 元信息</h3>
+  {% if doc.doc_type == 'image' %}
+  <div style="text-align:center;margin-bottom:14px;">
+    <img src="{{ url_for('admin_kb_raw_image', doc_id=doc.id) }}"
+         style="max-width:100%;max-height:380px;border-radius:10px;border:1px solid rgba(78,161,255,0.30);box-shadow:0 8px 22px rgba(0,12,40,0.4);" />
+  </div>
+  {% endif %}
+  <div style="font-size:13px;line-height:1.9;color:#cfe0ff;">
+    <div><b style="color:#a8c0e8;">资料 ID：</b>{{ doc.id }}</div>
+    <div><b style="color:#a8c0e8;">类型：</b>{{ doc.type_icon() }} {{ doc.type_label() }} ({{ doc.doc_type }})</div>
+    {% if doc.source_url %}
+    <div><b style="color:#a8c0e8;">来源 URL：</b><a href="{{ doc.source_url }}" target="_blank" style="color:var(--cyan);">{{ doc.source_url }}</a></div>
+    {% endif %}
+    {% if doc.file_path %}
+    <div><b style="color:#a8c0e8;">文件路径：</b><code class="code-cell">{{ doc.file_path }}</code></div>
+    <div><b style="color:#a8c0e8;">原文件名：</b>{{ doc.file_name }}{% if doc.size %} · {{ "%.1f KB"|format(doc.size/1024) }}{% endif %}</div>
+    {% endif %}
+    <div><b style="color:#a8c0e8;">创建时间：</b>{{ doc.created_at.strftime('%Y-%m-%d %H:%M') if doc.created_at else '—' }}</div>
+    {% if doc.error_msg %}
+    <div style="color:#ff8b9a;"><b>错误：</b>{{ doc.error_msg }}</div>
+    {% endif %}
+  </div>
+  {% if doc.summary %}
+  <div class="card-section-title" style="margin-top:14px;">摘要预览（前台引文卡片显示这一段的前 120 字）</div>
+  <div style="background:rgba(6,14,34,0.5);border:1px solid rgba(78,161,255,0.18);border-radius:10px;padding:12px;font-size:13px;color:#cfe0ff;line-height:1.7;white-space:pre-wrap;">{{ doc.summary[:300] }}{% if doc.summary|length > 300 %}…{% endif %}</div>
+  {% endif %}
+</div>
+
+<h3 style="color:#cfe0ff;font-size:15px;margin:26px 0 12px;">📝 切块详情（共 {{ chunks|length }} 个）</h3>
+
+{% for c in chunks %}
+<div class="card" style="padding:16px 20px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <div>
+      <span class="badge cyan">#{{ c.chunk_index + 1 }}</span>
+      {% if c.page_no %}<span class="badge">📑 第 {{ c.page_no }} 页</span>{% endif %}
+      {% if c.section %}<span class="badge purple">{{ c.section }}</span>{% endif %}
+      <span style="color:var(--text-dim);font-size:12px;margin-left:8px;">{{ c.content|length }} 字</span>
+    </div>
+    <a href="{{ url_for('admin_kb_citation', chunk_id=c.id) }}" style="font-size:12px;color:var(--primary-2);">引文链接 →</a>
+  </div>
+  <div style="background:rgba(6,14,34,0.5);border:1px solid rgba(78,161,255,0.14);border-radius:10px;padding:14px;font-size:13.5px;line-height:1.8;color:#dde9ff;white-space:pre-wrap;">{{ c.content }}</div>
+</div>
+{% else %}
+<div class="card" style="text-align:center;color:var(--text-dim);padding:48px;">暂无切块</div>
+{% endfor %}
+
+{% endblock %}

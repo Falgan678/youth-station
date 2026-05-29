@@ -1,0 +1,35 @@
+{% extends "admin_base.html" %}
+{% block title %}引文溯源 #{{ chunk.id }}{% endblock %}
+{% block content %}
+<h1 class="page-title">
+  <span class="pt-icon">🔍</span>
+  引文溯源 <span style="font-size:13px;color:var(--text-dim);font-weight:400;">Citation Trace</span>
+</h1>
+<p class="page-sub">
+  这是 AI 答案中某条引用对应的原始资料切块。<b>仅后台管理员可见全文</b>。
+</p>
+
+<div class="card">
+  <h3><span style="color:var(--cyan);">✦</span> 资料信息</h3>
+  <div style="font-size:13.5px;line-height:1.9;color:#cfe0ff;">
+    <div><b style="color:#a8c0e8;">资料标题：</b>
+      <a href="{{ url_for('admin_kb_detail', did=doc.id) }}" style="color:var(--cyan);font-weight:600;">{{ doc.title }}</a>
+    </div>
+    <div><b style="color:#a8c0e8;">类型：</b>{{ doc.type_icon() }} {{ doc.type_label() }}</div>
+    {% if doc.category %}<div><b style="color:#a8c0e8;">分类：</b><span class="badge">{{ doc.category }}</span></div>{% endif %}
+    {% if chunk.page_no %}<div><b style="color:#a8c0e8;">页码：</b>第 {{ chunk.page_no }} 页</div>{% endif %}
+    <div><b style="color:#a8c0e8;">切块编号：</b>#{{ chunk.chunk_index + 1 }} (chunk_id={{ chunk.id }})</div>
+    {% if doc.source_url %}<div><b style="color:#a8c0e8;">来源链接：</b><a href="{{ doc.source_url }}" target="_blank" style="color:var(--cyan);">{{ doc.source_url }}</a></div>{% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <h3><span style="color:var(--cyan);">📖</span> 原文切块</h3>
+  <div style="background:rgba(6,14,34,0.5);border:1px solid rgba(78,161,255,0.18);border-radius:10px;padding:18px;font-size:14px;line-height:1.85;color:#e6f0ff;white-space:pre-wrap;">{{ chunk.content }}</div>
+</div>
+
+<div class="actions" style="margin-top:18px;">
+  <a href="{{ url_for('admin_kb_detail', did=doc.id) }}" class="btn ghost">← 看完整文档</a>
+  <a href="{{ url_for('admin_kb') }}" class="btn ghost">回到知识库列表</a>
+</div>
+{% endblock %}

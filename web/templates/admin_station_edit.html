@@ -1,0 +1,198 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ '编辑' if s.id else '新增' }}驿站{% endblock %}
+{% block head %}
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+{% endblock %}
+{% block content %}
+<h1 class="page-title">{{ '编辑驿站' if s.id else '新增驿站' }}</h1>
+
+<form method="post" class="form-card">
+  <div class="grid-2">
+    <div class="field">
+      <label>驿站名称 *</label>
+      <input name="name" value="{{ s.name or '' }}" required />
+    </div>
+    <div class="field">
+      <label>所属文件夹/分组</label>
+      <input name="folder" value="{{ s.folder or '' }}" placeholder="如：佛山青年人才驿站" />
+    </div>
+    <div class="field">
+      <label>城市（留空将从地址自动识别）</label>
+      <input name="city" value="{{ s.city or '' }}" placeholder="如：佛山市" />
+    </div>
+    <div class="field">
+      <label>区域</label>
+      <input name="district" value="{{ s.district or '' }}" placeholder="如：禅城区" />
+    </div>
+  </div>
+
+  <div class="field">
+    <label>详细地址 *</label>
+    <input name="address" value="{{ s.address or '' }}" required />
+  </div>
+
+  <div class="grid-2">
+    <div class="field">
+      <label>经度（保存时若为空将自动调用高德地理编码）</label>
+      <input name="lng" value="{{ s.lng or '' }}" />
+    </div>
+    <div class="field">
+      <label>纬度</label>
+      <input name="lat" value="{{ s.lat or '' }}" />
+    </div>
+  </div>
+
+  <h3 class="d-section" style="margin:20px 0 12px;">📞 一键申请直达（结构化字段，前端会优先展示）</h3>
+  <div class="grid-2">
+    <div class="field">
+      <label>联系人</label>
+      <input name="contact_name" value="{{ s.contact_name or '' }}" placeholder="如：张老师" />
+    </div>
+    <div class="field">
+      <label>联系电话（前端可一键拨打）</label>
+      <input name="contact_phone" value="{{ s.contact_phone or '' }}" placeholder="如：13800000000" />
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="field">
+      <label>申请链接（H5 / 小程序 / 表单）</label>
+      <input name="apply_url" value="{{ s.apply_url or '' }}" placeholder="https://..." />
+    </div>
+    <div class="field">
+      <label>免费入住天数</label>
+      <input name="free_days" type="number" value="{{ s.free_days or '' }}" placeholder="如：7" />
+    </div>
+  </div>
+  <div class="field">
+    <label>微信公众号 / 小程序二维码（图片 URL，可点"上传"）</label>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <input name="wechat_qr" id="qr_url" value="{{ s.wechat_qr or '' }}" placeholder="可粘贴 URL，或点右侧上传" style="flex:1;" />
+      <button type="button" class="btn ghost" onclick="document.getElementById('qr_file').click()">上传</button>
+      <input type="file" id="qr_file" accept="image/*" style="display:none" onchange="uploadQR(this)" />
+      {% if s.wechat_qr %}<img src="{{ s.wechat_qr }}" style="width:60px;height:60px;border-radius:6px;border:1px solid #2c4a8a;" />{% endif %}
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="field">
+      <label>申请条件（每行一条，前端会以 ✓ 列表展示）</label>
+      <textarea name="requirements_text" rows="4" placeholder="2025/2026 届应届毕业生&#10;全日制本科及以上&#10;户籍不限">{{ s.requirements_text }}</textarea>
+    </div>
+    <div class="field">
+      <label>所需材料（每行一条）</label>
+      <textarea name="materials_text" rows="4" placeholder="身份证&#10;毕业证 / 在校证明&#10;录用通知或面试邀约">{{ s.materials_text }}</textarea>
+    </div>
+  </div>
+
+  <h3 class="d-section" style="margin:20px 0 12px;">📝 申请补充说明（富文本，可放图片/链接/附件）</h3>
+  <div class="field">
+    <div id="editor" style="min-height:240px;background:#fff;color:#333;border-radius:8px;"></div>
+    <textarea name="guide_html" id="guide_html" style="display:none;">{{ s.guide_html or '' }}</textarea>
+  </div>
+
+  <div class="field">
+    <label>备注 / 特殊要求</label>
+    <textarea name="remark" rows="3" placeholder="如：仅限本地高校应届毕业生；需提供录用证明等">{{ s.remark or '' }}</textarea>
+  </div>
+
+  <div class="actions">
+    <button type="submit" class="btn">保存</button>
+    <a class="btn ghost" href="{{ url_for('admin_stations') }}">返回</a>
+  </div>
+</form>
+
+<script>
+const quill = new Quill('#editor', {
+  theme: 'snow',
+  modules: {
+    toolbar: {
+      container: [
+        [{ header: [1, 2, 3, false] }],
+        ['bold','italic','underline','strike'],
+        [{ color: [] }, { background: [] }],
+        [{ list:'ordered' }, { list:'bullet' }],
+        ['blockquote','code-block'],
+        ['link','image'],
+        ['clean']
+      ],
+      handlers: {
+        image: imageHandler
+      }
+    }
+  },
+  placeholder: '请详细描述申请方式、联系人、办理流程，可插入图片、链接、附件…'
+});
+
+// 初始化内容
+const initial = document.getElementById('guide_html').value;
+if (initial) quill.clipboard.dangerouslyPasteHTML(initial);
+
+// 提交前同步
+document.querySelector('form').addEventListener('submit', () => {
+  document.getElementById('guide_html').value = quill.root.innerHTML;
+});
+
+// 图片/文件上传
+function imageHandler() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = async () => {
+    const f = input.files[0];
+    if (!f) return;
+    const url = await uploadFile(f);
+    if (url) {
+      const range = quill.getSelection(true);
+      quill.insertEmbed(range.index, 'image', url, 'user');
+      quill.setSelection(range.index + 1);
+    }
+  };
+  input.click();
+}
+
+// 自定义按钮：上传任意文件并插入下载链接
+const tb = quill.getModule('toolbar').container;
+const btn = document.createElement('button');
+btn.type = 'button';
+btn.innerHTML = '📎';
+btn.title = '上传附件（pdf/word/zip 等）';
+btn.style.cssText = 'width:auto;padding:0 6px;';
+btn.onclick = async () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.onchange = async () => {
+    const f = input.files[0];
+    if (!f) return;
+    const url = await uploadFile(f);
+    if (url) {
+      const range = quill.getSelection(true);
+      quill.insertText(range.index, f.name, 'link', url, 'user');
+      quill.insertText(range.index + f.name.length, '\n', 'user');
+    }
+  };
+  input.click();
+};
+tb.appendChild(btn);
+
+async function uploadFile(f) {
+  const fd = new FormData();
+  fd.append('file', f);
+  const r = await fetch('/admin/upload', { method:'POST', body: fd });
+  const j = await r.json();
+  if (j.ok) return j.url;
+  alert('上传失败：' + (j.msg || ''));
+  return null;
+}
+
+async function uploadQR(inp) {
+  const f = inp.files[0];
+  if (!f) return;
+  const url = await uploadFile(f);
+  if (url) {
+    document.getElementById('qr_url').value = url;
+    alert('二维码已上传：保存后前端用户即可看到');
+  }
+  inp.value = '';
+}
+</script>
+{% endblock %}

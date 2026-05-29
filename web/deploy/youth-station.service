@@ -1,0 +1,20 @@
+[Unit]
+Description=Youth Station Web (Gunicorn)
+After=network.target
+
+[Service]
+Type=notify
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/youth-station/web
+Environment="PATH=/opt/youth-station/web/.venv/bin:/usr/bin:/bin"
+EnvironmentFile=-/opt/youth-station/web/.env
+ExecStart=/opt/youth-station/web/.venv/bin/gunicorn -c /opt/youth-station/web/deploy/gunicorn_conf.py "app:create_app()"
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=3
+KillMode=mixed
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

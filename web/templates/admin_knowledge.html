@@ -1,0 +1,132 @@
+{% extends "admin_base.html" %}
+{% block title %}知识库管理{% endblock %}
+{% block content %}
+<h1 class="page-title">
+  <span class="pt-icon">📚</span>
+  通用知识库 <span style="font-size:13px;color:var(--text-dim);font-weight:400;">FAQ Knowledge Base</span>
+</h1>
+<p class="page-sub">
+  这里维护"驿站码丢了怎么办"、"能否带宠物"等通用问题。<b>AI 助手会自动检索匹配的条目</b>并融入回答，提升答复准确率。
+</p>
+
+<div class="card">
+  <h3>
+    <span style="color:var(--cyan);">✦</span> 新增 / 编辑条目
+    <span class="h-tip">填写问答，关键词用于辅助检索命中</span>
+  </h3>
+
+  <form method="post" action="{{ url_for('admin_knowledge_save') }}">
+    <input type="hidden" name="id" id="k_id" />
+
+    <div class="card-section-title">基础信息</div>
+    <div class="grid-2" style="margin-bottom:14px;">
+      <div class="field">
+        <label>分类<span class="req">*</span></label>
+        <input name="category" id="k_category" placeholder="申请流程 / 入住须知 / 政策解读 / 注意事项" required />
+      </div>
+      <div class="field">
+        <label>排序（数字越小越靠前）</label>
+        <input name="sort" id="k_sort" type="number" value="0" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label>问题<span class="req">*</span></label>
+      <input name="question" id="k_question" placeholder="如：驿站码丢了怎么办？" required />
+    </div>
+
+    <div class="field">
+      <label>答案<span class="req">*</span> <span style="color:var(--text-dim);font-weight:400;">（可写多段，AI 会基于此回答）</span></label>
+      <textarea name="answer" id="k_answer" rows="5" required placeholder="详细的解答内容…&#10;支持多段落、要点列举"></textarea>
+    </div>
+
+    <div class="card-section-title" style="margin-top:18px;">检索增强</div>
+    <div class="field">
+      <label>关键词 <span style="color:var(--text-dim);font-weight:400;">（空格或逗号分隔，提升检索命中率）</span></label>
+      <input name="keywords" id="k_keywords" placeholder="如：丢失 找回 重发 补办" />
+    </div>
+
+    <div class="field">
+      <div class="check-row">
+        <label><input type="checkbox" name="enabled" id="k_enabled" value="1" checked /> 启用此条目</label>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="submit" class="btn">💾 保存条目</button>
+      <button type="button" class="btn ghost" onclick="resetForm()">清空表单</button>
+    </div>
+  </form>
+</div>
+
+<div class="toolbar">
+  <form method="get" class="filter">
+    <select name="category">
+      <option value="">全部分类</option>
+      {% for c in cats %}<option value="{{ c }}" {% if c==q_cat %}selected{% endif %}>{{ c }}</option>{% endfor %}
+    </select>
+    <input name="kw" value="{{ q_kw }}" placeholder="🔍 搜索问题或答案" style="min-width:240px;" />
+    <button type="submit" class="btn ghost">筛选</button>
+  </form>
+  <span style="color:var(--text-dim);font-size:13px;">
+    共 <b style="color:var(--cyan);font-size:15px;">{{ entries|length }}</b> 条
+  </span>
+</div>
+
+<table class="grid">
+  <thead>
+    <tr>
+      <th style="width:110px;">分类</th>
+      <th>问题</th>
+      <th>答案预览</th>
+      <th style="width:140px;">关键词</th>
+      <th style="width:80px;">状态</th>
+      <th style="width:160px;">操作</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in entries %}
+    <tr>
+      <td><span class="badge cyan">{{ e.category or '未分类' }}</span></td>
+      <td><b style="color:#fff;">{{ e.question }}</b></td>
+      <td class="ellipsis" style="max-width:380px;color:var(--text-dim);" title="{{ e.answer }}">{{ e.answer[:80] }}…</td>
+      <td style="color:var(--text-dim);font-size:12px;">{{ e.keywords or '—' }}</td>
+      <td>{% if e.enabled %}<span class="ok">● 启用</span>{% else %}<span class="warn">○ 停用</span>{% endif %}</td>
+      <td>
+        <a href="javascript:;" onclick='editRow({{ {"id":e.id,"category":e.category,"question":e.question,"answer":e.answer,"keywords":e.keywords,"sort":e.sort,"enabled":e.enabled}|tojson }})'>编辑</a>
+        <a href="javascript:;" onclick="toggleRow({{ e.id }})">{% if e.enabled %}停用{% else %}启用{% endif %}</a>
+        <a href="javascript:;" onclick="delRow({{ e.id }})" style="color:#ff8b9a;">删除</a>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:48px;">📭 暂无条目，请在上方添加</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<script>
+function editRow(e) {
+  document.getElementById('k_id').value = e.id;
+  document.getElementById('k_category').value = e.category || '';
+  document.getElementById('k_question').value = e.question || '';
+  document.getElementById('k_answer').value = e.answer || '';
+  document.getElementById('k_keywords').value = e.keywords || '';
+  document.getElementById('k_sort').value = e.sort || 0;
+  document.getElementById('k_enabled').checked = !!e.enabled;
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+function resetForm() {
+  document.querySelector('form').reset();
+  document.getElementById('k_id').value = '';
+}
+async function delRow(id) {
+  if (!confirm('确定删除？')) return;
+  await fetch(`/admin/knowledge/delete/${id}`, {method:'POST'});
+  location.reload();
+}
+async function toggleRow(id) {
+  await fetch(`/admin/knowledge/toggle/${id}`, {method:'POST'});
+  location.reload();
+}
+</script>
+{% endblock %}

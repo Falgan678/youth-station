@@ -1,0 +1,49 @@
+{% extends "admin_base.html" %}
+{% block title %}引文审计{% endblock %}
+{% block content %}
+<h1 class="page-title">
+  <span class="pt-icon">📋</span>
+  引文审计 <span style="font-size:13px;color:var(--text-dim);font-weight:400;">Citation Audit Log</span>
+</h1>
+<p class="page-sub">
+  最近 200 条 AI 问答的引用记录。可以追溯每个回答用了知识库里的哪几条资料。
+</p>
+
+<table class="grid">
+  <thead>
+    <tr>
+      <th style="width:160px;">时间</th>
+      <th>用户问题</th>
+      <th>命中资料</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for it in items %}
+    <tr>
+      <td style="color:var(--text-dim);font-size:12px;">{{ it.time.strftime('%Y-%m-%d %H:%M:%S') if it.time else '—' }}</td>
+      <td><b style="color:#fff;">{{ it.q }}</b></td>
+      <td>
+        {% if it.cites %}
+          {% for c in it.cites %}
+          <a href="{{ url_for('admin_kb_citation', chunk_id=c.chunk_id) }}"
+             style="display:inline-block;margin:2px 4px 2px 0;padding:3px 9px;border-radius:6px;
+                    background:rgba(78,161,255,0.12);border:1px solid rgba(78,161,255,0.25);
+                    color:#cfe6ff;font-size:12px;text-decoration:none;">
+            [{{ c.ref }}] {{ c.doc_title }}{% if c.page_no %}·P{{ c.page_no }}{% endif %}
+          </a>
+          {% endfor %}
+        {% else %}
+          <span style="color:var(--text-dim);">—</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="3" style="text-align:center;color:var(--text-dim);padding:48px;">暂无记录</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<p style="margin-top:18px;">
+  <a href="{{ url_for('admin_kb') }}" class="btn ghost">← 返回知识库</a>
+</p>
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}驿站码登录 · 全国青年人才驿站{% endblock %}
+{% block body %}
+<div class="login-wrap">
+  <div class="login-bg">
+    <div class="grid"></div>
+    <div class="glow glow-1"></div>
+    <div class="glow glow-2"></div>
+  </div>
+
+  <div class="login-card">
+    <div class="brand">
+      <div class="logo-circle">
+        <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12L12 3l9 9"/><path d="M5 10v10h14V10"/><path d="M9 21V14h6v7"/>
+        </svg>
+      </div>
+      <h1>全国青年人才驿站</h1>
+      <p class="subtitle">应届毕业生免费驿站 · 信息聚合查询平台</p>
+    </div>
+
+    <div class="form">
+      <label>专属驿站码</label>
+      <input id="code" type="text" maxlength="16" placeholder="请输入您收到的驿站码" autocomplete="off" />
+      <button id="btn-login" class="btn-primary">进入系统</button>
+      <p class="msg" id="msg"></p>
+      <p class="tips">驿站码由各高校就业办/人才驿站官方分发<br/>如有疑问请联系发码单位</p>
+    </div>
+  </div>
+
+  <footer class="footer">© Youth Talent Station · Powered by Tech Blue</footer>
+</div>
+
+<script>
+  const btn = document.getElementById('btn-login');
+  const inp = document.getElementById('code');
+  const msg = document.getElementById('msg');
+
+  async function login() {
+    const code = inp.value.trim();
+    if (!code) { msg.textContent = '请输入驿站码'; return; }
+    btn.disabled = true; btn.textContent = '验证中...';
+    try {
+      const r = await fetch('/api/portal/login', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({code})
+      });
+      const j = await r.json();
+      if (j.ok) { location.href = '/index'; }
+      else { msg.textContent = j.msg || '验证失败'; }
+    } catch (e) { msg.textContent = '网络异常'; }
+    finally { btn.disabled = false; btn.textContent = '进入系统'; }
+  }
+  btn.addEventListener('click', login);
+  inp.addEventListener('keydown', e => { if (e.key==='Enter') login(); });
+  inp.focus();
+</script>
+{% endblock %}

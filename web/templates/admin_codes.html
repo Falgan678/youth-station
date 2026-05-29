@@ -1,0 +1,69 @@
+{% extends "admin_base.html" %}
+{% block title %}驿站码管理{% endblock %}
+{% block content %}
+<h1 class="page-title">驿站码管理</h1>
+
+<div class="card">
+  <h3>批量生成驿站码</h3>
+  <form method="post" action="{{ url_for('admin_codes_generate') }}" class="inline-form">
+    <label>数量</label>
+    <input type="number" name="count" value="20" min="1" max="500" />
+    <label>有效期(天)</label>
+    <input type="number" name="days" placeholder="留空=永久" />
+    <label>分发备注</label>
+    <input type="text" name="remark" placeholder="如：2025届中山大学" />
+    <button class="btn" type="submit">生成</button>
+    <a class="btn ghost" href="{{ url_for('admin_codes_export') }}">📤 导出全部</a>
+  </form>
+</div>
+
+<table class="grid">
+  <thead>
+    <tr>
+      <th>驿站码</th>
+      <th>分发备注</th>
+      <th>状态</th>
+      <th>过期时间</th>
+      <th>使用次数</th>
+      <th>最后使用</th>
+      <th>操作</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in codes %}
+    <tr>
+      <td><code class="code-cell">{{ c.code }}</code></td>
+      <td>{{ c.remark or '' }}</td>
+      <td>{% if c.enabled %}<span class="ok">启用</span>{% else %}<span class="warn">停用</span>{% endif %}</td>
+      <td>{{ c.expire_at.strftime('%Y-%m-%d %H:%M') if c.expire_at else '永久' }}</td>
+      <td>{{ c.used_count or 0 }}</td>
+      <td>{{ c.last_used_at.strftime('%Y-%m-%d %H:%M') if c.last_used_at else '-' }}</td>
+      <td>
+        <a href="javascript:;" onclick="toggleCode({{ c.id }})">{% if c.enabled %}停用{% else %}启用{% endif %}</a>
+        <a href="javascript:;" onclick="copyCode('{{ c.code }}')">复制</a>
+        <a href="javascript:;" onclick="delCode({{ c.id }})">删除</a>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" style="text-align:center;color:#8aa8d6;padding:40px;">暂无驿站码，请先生成</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<script>
+async function toggleCode(id) {
+  const r = await fetch(`/admin/codes/toggle/${id}`, {method:'POST'});
+  const j = await r.json();
+  if (j.ok) location.reload();
+}
+async function delCode(id) {
+  if (!confirm('删除后该码将不可用')) return;
+  const r = await fetch(`/admin/codes/delete/${id}`, {method:'POST'});
+  const j = await r.json();
+  if (j.ok) location.reload();
+}
+function copyCode(c) {
+  navigator.clipboard.writeText(c).then(()=>{ alert('已复制：'+c); });
+}
+</script>
+{% endblock %}

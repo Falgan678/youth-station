@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}政策速查 · 青年驿站{% endblock %}
+{% block body %}
+<header class="topbar">
+  <a class="logo-mini" href="/index">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15 18l-6-6 6-6"/>
+    </svg>
+    返回首页
+  </a>
+  <div style="flex:1;text-align:center;font-weight:600;color:#cfe6ff;">📋 政策速查 · 一键直达</div>
+  <a class="logout" href="/logout">退出</a>
+</header>
+
+<main style="padding:24px 32px;max-width:1200px;margin:0 auto;">
+  <p style="color:#8aa8d6;font-size:13px;margin:0 0 18px;">点击卡片直达官方申报入口。本页仅做"导航员"，不存储任何政策正文，请以官方网站发布为准。</p>
+
+  <div class="policy-tabs" id="city-tabs"></div>
+  <div id="policy-list"></div>
+</main>
+
+<style>
+.policy-tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom: 20px; }
+.policy-tabs .tab {
+  padding: 6px 16px; border-radius: 999px; cursor: pointer;
+  background: rgba(8,18,48,0.6); border: 1px solid rgba(78,161,255,0.18);
+  color: #cfe6ff; font-size: 13px;
+}
+.policy-tabs .tab.active {
+  background: linear-gradient(90deg, #2c7bff, #4ea1ff);
+  border-color: transparent; color: #fff; font-weight: 600;
+}
+.city-block { margin-bottom: 28px; }
+.city-block h3 {
+  margin: 0 0 12px; font-size: 16px; color: #fff;
+  border-left: 3px solid #2c7bff; padding-left: 10px;
+}
+.policy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.policy-card {
+  background: linear-gradient(135deg, rgba(44,123,255,0.12), rgba(8,18,48,0.5));
+  border: 1px solid rgba(78,161,255,0.2);
+  border-radius: 12px; padding: 14px 16px;
+  display: flex; gap: 12px; align-items: flex-start;
+  transition: all .15s;
+  cursor: pointer; color: inherit;
+}
+.policy-card:hover {
+  border-color: #2c7bff; transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(44,123,255,0.25);
+  text-decoration: none;
+}
+.policy-icon { font-size: 28px; line-height: 1; flex-shrink: 0; }
+.policy-content { flex: 1; min-width: 0; }
+.policy-cat {
+  display: inline-block; font-size: 11px; padding: 2px 8px;
+  background: rgba(0,225,255,0.15); color: #00e1ff;
+  border-radius: 4px; margin-bottom: 6px;
+}
+.policy-title { font-size: 14px; font-weight: 600; color: #fff; margin: 0 0 4px; }
+.policy-desc { font-size: 12px; color: #8aa8d6; line-height: 1.5; }
+.policy-arrow { color: #4ea1ff; font-size: 18px; flex-shrink: 0; }
+.empty { color: #8aa8d6; text-align: center; padding: 60px; }
+@media (max-width: 720px) {
+  main { padding: 16px; }
+  .policy-grid { grid-template-columns: 1fr; }
+}
+</style>
+
+<script>
+let allPolicies = {};
+let activeCity = 'all';
+
+async function loadPolicies() {
+  const r = await fetch('/api/policies');
+  const j = await r.json();
+  allPolicies = j.data || {};
+  renderTabs();
+  renderList();
+}
+
+function renderTabs() {
+  const tabs = document.getElementById('city-tabs');
+  const cities = Object.keys(allPolicies).sort();
+  tabs.innerHTML = `<span class="tab ${activeCity==='all'?'active':''}" data-c="all">全部城市</span>` +
+    cities.map(c => `<span class="tab ${activeCity===c?'active':''}" data-c="${c}">${c}</span>`).join('');
+  tabs.querySelectorAll('.tab').forEach(el => {
+    el.addEventListener('click', () => {
+      activeCity = el.dataset.c;
+      renderTabs(); renderList();
+    });
+  });
+}
+
+function renderList() {
+  const box = document.getElementById('policy-list');
+  let cities = Object.keys(allPolicies).sort();
+  if (activeCity !== 'all') cities = cities.filter(c => c === activeCity);
+  if (!cities.length) { box.innerHTML = '<div class="empty">暂无政策入口</div>'; return; }
+
+  box.innerHTML = cities.map(city => {
+    const items = allPolicies[city] || [];
+    return `<div class="city-block">
+      <h3>${city}</h3>
+      <div class="policy-grid">
+        ${items.map(p => `
+          <a class="policy-card" href="${p.url}" target="_blank" onclick="trackPolicy(${p.id})">
+            <div class="policy-icon">${p.icon}</div>
+            <div class="policy-content">
+              ${p.category ? `<span class="policy-cat">${escapeHtml(p.category)}</span>` : ''}
+              <div class="policy-title">${escapeHtml(p.title)}</div>
+              ${p.description ? `<div class="policy-desc">${escapeHtml(p.description)}</div>` : ''}
+            </div>
+            <div class="policy-arrow">→</div>
+          </a>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function trackPolicy(id) {
+  fetch('/api/policies/click', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({id})
+  }).catch(()=>{});
+}
+
+loadPolicies();
+</script>
+{% endblock %}

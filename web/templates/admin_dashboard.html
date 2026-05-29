@@ -1,0 +1,232 @@
+{% extends "admin_base.html" %}
+{% block title %}数据看板{% endblock %}
+{% block content %}
+<h1 class="page-title">数据看板</h1>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">累计访问 PV</div>
+    <div class="stat-num">{{ total_pv }}</div>
+  </div>
+  <div class="stat-card g2">
+    <div class="stat-label">今日 PV</div>
+    <div class="stat-num">{{ today_pv }}</div>
+  </div>
+  <div class="stat-card g3">
+    <div class="stat-label">今日 UV</div>
+    <div class="stat-num">{{ today_uv }}</div>
+  </div>
+  <div class="stat-card g4">
+    <div class="stat-label">驿站总数</div>
+    <div class="stat-num">{{ station_count }}</div>
+  </div>
+  <div class="stat-card g5">
+    <div class="stat-label">驿站码 (启用/总数)</div>
+    <div class="stat-num">{{ active_code_count }}<span style="font-size:14px;color:#8aa8d6;"> / {{ code_count }}</span></div>
+  </div>
+</div>
+
+{# ===== 转化漏斗 ===== #}
+<div class="card">
+  <h3>🎯 转化漏斗（核心业务链路）</h3>
+  <div class="funnel">
+    <div class="f-step" style="--w:100%">
+      <div class="f-num">{{ funnel_pv }}</div>
+      <div class="f-name">访问首页</div>
+    </div>
+    <div class="f-arrow">→ {{ rate_detail }}%</div>
+    <div class="f-step" style="--w:80%">
+      <div class="f-num">{{ funnel_detail }}</div>
+      <div class="f-name">查看驿站详情</div>
+    </div>
+    <div class="f-arrow">→ {{ rate_apply }}%</div>
+    <div class="f-step" style="--w:50%">
+      <div class="f-num">{{ funnel_apply }}</div>
+      <div class="f-name">点击申请按钮</div>
+    </div>
+  </div>
+  <div class="funnel-aux">
+    <span>政策入口点击：<b>{{ funnel_policy }}</b></span>
+    <span>AI 助手提问：<b>{{ funnel_ai }}</b></span>
+    <span>已使用驿站码：<b>{{ used_code_count }}</b></span>
+  </div>
+</div>
+
+{# ===== 14 天趋势图 ===== #}
+<div class="card">
+  <h3>📈 近 14 天访问与申请趋势</h3>
+  <canvas id="chart" height="100"></canvas>
+</div>
+
+<div class="card-row">
+  {# ===== 城市健康度 ===== #}
+  <div class="card half">
+    <h3>🏙️ 城市健康度</h3>
+    <table class="grid mini">
+      <thead>
+        <tr><th>城市</th><th>驿站</th><th>详情查看</th><th>申请</th><th>定位率</th><th>申请方式齐全</th></tr>
+      </thead>
+      <tbody>
+        {% for c in city_stats %}
+        <tr>
+          <td><b>{{ c.city }}</b></td>
+          <td>{{ c.stations }}</td>
+          <td>{{ c.views }}</td>
+          <td>{{ c.applies }}</td>
+          <td>
+            <div class="bar"><div class="bar-fill" style="width:{{ c.located_pct }}%"></div></div>
+            <span>{{ c.located_pct }}%</span>
+          </td>
+          <td>
+            <div class="bar"><div class="bar-fill warn" style="width:{{ c.apply_pct }}%"></div></div>
+            <span>{{ c.apply_pct }}%</span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# ===== 热门驿站 Top10 ===== #}
+  <div class="card half">
+    <h3>🔥 热门驿站 Top 10（按详情访问）</h3>
+    {% if hot_stations %}
+    <ol class="hot-list">
+      {% for s in hot_stations %}
+      <li>
+        <span class="hot-rank">{{ loop.index }}</span>
+        <a href="{{ url_for('admin_station_edit', sid=s.id) }}" class="hot-name">{{ s.name }}</a>
+        <span class="hot-city">{{ s.city }}</span>
+        <span class="hot-views">{{ s.views }} 次</span>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <div class="empty-tip">暂无访问数据</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card-row">
+  {# ===== 申请渠道分布 ===== #}
+  <div class="card half">
+    <h3>📞 申请渠道分布</h3>
+    {% if channel_stats %}
+    <canvas id="chartChannel" height="160"></canvas>
+    {% else %}
+    <div class="empty-tip">暂无申请按钮点击</div>
+    {% endif %}
+  </div>
+
+  {# ===== 驿站健康度 ===== #}
+  <div class="card half">
+    <h3>💯 驿站数据完整度</h3>
+    <div class="health">
+      <div class="h-row">
+        <span class="h-label">📍 已定位</span>
+        <div class="bar wide"><div class="bar-fill" style="width:{{ (located_total/station_count*100)|int if station_count else 0 }}%"></div></div>
+        <span class="h-num">{{ located_total }}/{{ station_count }}</span>
+      </div>
+      <div class="h-row">
+        <span class="h-label">🚀 申请方式齐全</span>
+        <div class="bar wide"><div class="bar-fill warn" style="width:{{ (with_apply_total/station_count*100)|int if station_count else 0 }}%"></div></div>
+        <span class="h-num">{{ with_apply_total }}/{{ station_count }}</span>
+      </div>
+      <div class="h-row">
+        <span class="h-label">📝 有申请说明</span>
+        <div class="bar wide"><div class="bar-fill ok" style="width:{{ (with_guide_total/station_count*100)|int if station_count else 0 }}%"></div></div>
+        <span class="h-num">{{ with_guide_total }}/{{ station_count }}</span>
+      </div>
+    </div>
+    <p class="hint">提示：「申请方式齐全」指至少配置了电话/链接/二维码三者之一。建议尽快补齐空白驿站，提升用户转化率。</p>
+  </div>
+</div>
+
+<style>
+.card-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.card.half { margin-bottom: 0; }
+.funnel { display: flex; align-items: center; gap: 8px; margin: 8px 0 12px; flex-wrap: wrap; }
+.f-step {
+  flex: 1; min-width: 120px;
+  background: linear-gradient(135deg, rgba(44,123,255,0.22), rgba(0,225,255,0.10));
+  border: 1px solid rgba(78,161,255,0.28);
+  border-radius: 10px; padding: 14px 18px; text-align: center;
+}
+.f-step .f-num { font-size: 28px; font-weight: 700; color: #fff; }
+.f-step .f-name { font-size: 12px; color: #8aa8d6; margin-top: 4px; }
+.f-arrow { color: #4ea1ff; font-size: 14px; font-weight: 600; min-width: 60px; text-align: center; }
+.funnel-aux { display: flex; gap: 24px; flex-wrap: wrap; padding: 10px 14px; background: rgba(8,18,48,0.5); border-radius: 8px; font-size: 13px; color: #cfe6ff; }
+.funnel-aux b { color: #00e1ff; margin-left: 4px; }
+
+.grid.mini th, .grid.mini td { padding: 8px 10px; font-size: 12px; }
+.bar { display: inline-block; width: 60px; height: 6px; background: rgba(78,161,255,0.15); border-radius: 3px; vertical-align: middle; overflow: hidden; }
+.bar.wide { width: 200px; }
+.bar-fill { height: 100%; background: #2c7bff; border-radius: 3px; transition: width .3s; }
+.bar-fill.warn { background: #ffb400; }
+.bar-fill.ok { background: #16d39a; }
+
+.hot-list { list-style: none; padding: 0; margin: 0; }
+.hot-list li { padding: 8px 0; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid rgba(78,161,255,0.08); font-size: 13px; }
+.hot-rank { width: 24px; height: 24px; background: rgba(44,123,255,0.18); color: #4ea1ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px; flex-shrink: 0; }
+.hot-list li:nth-child(1) .hot-rank { background: linear-gradient(135deg, #ffb400, #ff7800); color: #fff; }
+.hot-list li:nth-child(2) .hot-rank { background: linear-gradient(135deg, #c0c0c0, #909090); color: #fff; }
+.hot-list li:nth-child(3) .hot-rank { background: linear-gradient(135deg, #cd7f32, #a0522d); color: #fff; }
+.hot-name { flex: 1; min-width: 0; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hot-city { font-size: 11px; padding: 2px 8px; background: rgba(0,225,255,0.12); color: #00e1ff; border-radius: 4px; }
+.hot-views { color: #8aa8d6; font-size: 12px; min-width: 50px; text-align: right; }
+
+.health .h-row { display: flex; align-items: center; gap: 12px; margin: 12px 0; font-size: 13px; }
+.health .h-label { width: 130px; color: #cfe6ff; }
+.health .h-num { color: #4ea1ff; font-weight: 600; min-width: 70px; text-align: right; }
+.hint { font-size: 12px; color: #8aa8d6; margin-top: 16px; line-height: 1.6; }
+.empty-tip { color: #8aa8d6; text-align: center; padding: 30px; font-size: 13px; }
+
+@media (max-width: 1100px) { .card-row { grid-template-columns: 1fr; } }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+  // 14 天趋势图
+  const days = {{ days|tojson }};
+  new Chart(document.getElementById('chart'), {
+    type: 'line',
+    data: {
+      labels: days.map(d => d.date.slice(5)),
+      datasets: [
+        { label: 'PV', data: days.map(d => d.pv), borderColor: '#2c7bff', backgroundColor: 'rgba(44,123,255,0.18)', tension: .35, fill: true },
+        { label: 'UV', data: days.map(d => d.uv), borderColor: '#00e1ff', backgroundColor: 'rgba(0,225,255,0.12)', tension: .35, fill: true },
+        { label: '申请点击', data: days.map(d => d.apply), borderColor: '#ffb400', backgroundColor: 'rgba(255,180,0,0.15)', tension: .35, fill: true }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: '#cfe6ff' } } },
+      scales: {
+        x: { ticks: { color: '#8aa8d6' }, grid: { color: 'rgba(120,160,210,0.1)'} },
+        y: { ticks: { color: '#8aa8d6' }, grid: { color: 'rgba(120,160,210,0.1)'}, beginAtZero: true }
+      }
+    }
+  });
+
+  // 申请渠道分布饼图
+  const channelStats = {{ channel_stats|tojson }};
+  if (Object.keys(channelStats).length > 0) {
+    new Chart(document.getElementById('chartChannel'), {
+      type: 'doughnut',
+      data: {
+        labels: Object.keys(channelStats),
+        datasets: [{
+          data: Object.values(channelStats),
+          backgroundColor: ['#2c7bff', '#00e1ff', '#16d39a', '#ffb400', '#ff5b6e'],
+          borderColor: '#0c1838',
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { position: 'right', labels: { color: '#cfe6ff' } } }
+      }
+    });
+  }
+</script>
+{% endblock %}

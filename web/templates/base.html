@@ -1,0 +1,1537 @@
+{# 前端公用基础模板 #}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}青年驿站聚合查询{% endblock %}</title>
+  <script>
+    /* 主题预加载：避免页面闪烁。读 localStorage 或跟随系统 */
+    (function(){
+      try {
+        var t = localStorage.getItem('yz_theme');
+        if (!t) {
+          t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+        }
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch(e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/portal.css') }}" />
+  {% block head %}{% endblock %}
+</head>
+<body>
+  {% block body %}{% endblock %}
+
+  {# 主题切换按钮 - 全局右上角 #}
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="切换 白天/夜间 主题">
+    <span class="ic-sun">☀</span><span class="ic-moon">🌙</span>
+  </button>
+  <script>
+    function toggleTheme() {
+      var cur = document.documentElement.getAttribute('data-theme');
+      var next = cur === 'light' ? 'dark' : 'light';
+      if (next === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      else document.documentElement.removeAttribute('data-theme');
+      try { localStorage.setItem('yz_theme', next); } catch(e) {}
+    }
+  </script>
+
+  {# ====== ⑨ AI 驿站助手浮窗（仅登录后展示） ====== #}
+  {% if session.get('code_id') %}
+  {# === 复用的"湾湾鲸"SVG 模板（粉色海豚 + 珊瑚芽） === #}
+  {% macro dolphin(size=46, cls='dolphin') %}
+  <svg class="{{ cls }}" viewBox="0 0 80 80" width="{{ size }}" height="{{ size }}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="bodyGrad" cx="40%" cy="35%" r="60%">
+        <stop offset="0%" stop-color="#ffd6e1"/>
+        <stop offset="55%" stop-color="#ffaec7"/>
+        <stop offset="100%" stop-color="#ff7daa"/>
+      </radialGradient>
+      <radialGradient id="eyeGrad" cx="35%" cy="30%">
+        <stop offset="0%" stop-color="#ff6b8a"/>
+        <stop offset="55%" stop-color="#a8163d"/>
+        <stop offset="100%" stop-color="#5a0820"/>
+      </radialGradient>
+      <radialGradient id="cheekGrad" cx="50%" cy="50%">
+        <stop offset="0%" stop-color="#fff" stop-opacity="0.95"/>
+        <stop offset="80%" stop-color="#ffe6ee" stop-opacity="0.95"/>
+        <stop offset="100%" stop-color="#ffe6ee" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    {# 头顶珊瑚芽：橙色 + 绿色双叶 #}
+    <g class="d-coral">
+      <path d="M40 12 Q34 4 30 6 Q28 10 33 14 Q36 14 40 18 Z" fill="#ff7a3a"/>
+      <ellipse cx="32" cy="8" rx="3.5" ry="2.5" fill="#ff9456"/>
+      <path d="M40 12 Q46 3 50 6 Q52 11 47 15 Q43 14 40 18 Z" fill="#3fd6b8"/>
+      <ellipse cx="48" cy="8" rx="3.5" ry="2.5" fill="#6ee0c7"/>
+    </g>
+    {# 圆头 #}
+    <ellipse class="d-head" cx="40" cy="42" rx="30" ry="26" fill="url(#bodyGrad)"/>
+    {# 白色腮帮（海豚标志 W 型） #}
+    <path class="d-belly" d="M14 44 Q24 60 40 60 Q56 60 66 44 Q60 56 40 56 Q20 56 14 44 Z" fill="#ffffff" opacity="0.96"/>
+    <ellipse cx="22" cy="48" rx="6" ry="5" fill="#ffffff"/>
+    <ellipse cx="58" cy="48" rx="6" ry="5" fill="#ffffff"/>
+    {# 大眼睛 #}
+    <g class="d-eyes">
+      <ellipse cx="28" cy="38" rx="6.5" ry="7.5" fill="url(#eyeGrad)"/>
+      <ellipse cx="52" cy="38" rx="6.5" ry="7.5" fill="url(#eyeGrad)"/>
+      <circle cx="30" cy="35" r="1.8" fill="#fff"/>
+      <circle cx="54" cy="35" r="1.8" fill="#fff"/>
+      <circle cx="26" cy="40" r="0.9" fill="#fff" opacity=".7"/>
+      <circle cx="50" cy="40" r="0.9" fill="#fff" opacity=".7"/>
+    </g>
+    {# 闭眼线（说话/眨眼时显示） #}
+    <g class="d-eyes-closed" style="display:none;">
+      <path d="M22 38 Q28 41 34 38" stroke="#5a0820" stroke-width="2" stroke-linecap="round" fill="none"/>
+      <path d="M46 38 Q52 41 58 38" stroke="#5a0820" stroke-width="2" stroke-linecap="round" fill="none"/>
+    </g>
+    {# 腮红 #}
+    <ellipse cx="20" cy="48" rx="3" ry="2" fill="#ff6699" opacity=".5"/>
+    <ellipse cx="60" cy="48" rx="3" ry="2" fill="#ff6699" opacity=".5"/>
+    {# 嘴巴（弧形微笑） #}
+    <path class="d-mouth" d="M34 52 Q40 56 46 52" stroke="#c94570" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+    {# 高光 #}
+    <ellipse cx="30" cy="22" rx="8" ry="4" fill="#fff" opacity="0.35"/>
+  </svg>
+  {% endmacro %}
+
+  <div id="ai-bubble" onclick="toggleAI()" title="湾湾鲸 · AI 驿站助手">
+    <div class="chick-wrap">
+      {{ dolphin(50, 'dolphin breath') }}
+      <span class="hi-pop">Hi~</span>
+    </div>
+    <div class="bubble-text">
+      <span class="bt-name">湾湾鲸</span>
+      <span class="bt-sub">AI 驿站助手</span>
+    </div>
+  </div>
+
+  <div id="ai-panel">
+    <div class="ai-head" id="ai-drag-handle">
+      <span class="ai-head-left">
+        {{ dolphin(32, 'dolphin head-mini') }}
+        <span>湾湾鲸 · AI 驿站助手</span>
+      </span>
+      <span class="ai-head-tools">
+        <span class="ai-tool" onclick="toggleAIMaximize()" id="ai-max-btn" title="放大/还原">⤢</span>
+        <span class="ai-tool" onclick="toggleAIFullscreen()" id="ai-full-btn" title="全屏">⛶</span>
+        <span class="ai-tool ai-close" onclick="toggleAI()" title="关闭">×</span>
+      </span>
+    </div>
+
+    <div class="ai-toolbar">
+      <button class="ai-mini-btn ai-side-toggle" onclick="toggleSessions()" title="会话列表">☰</button>
+      <button class="ai-mini-btn" onclick="newSession()" title="新建对话" style="color:#5cd9f0;border-color:rgba(0,225,255,0.32);">＋</button>
+      <select id="ai-provider" title="切换模型"></select>
+      <label class="sw" title="启用联网搜索">
+        <input type="checkbox" id="ai-web" />
+        <span>🌐 联网</span>
+      </label>
+      <label class="sw" title="检索本地知识库">
+        <input type="checkbox" id="ai-kb" checked />
+        <span>📚 知识库</span>
+      </label>
+      <button class="ai-mini-btn" onclick="clearAI()" title="清空当前对话">🗑</button>
+    </div>
+
+    <!-- 会话抽屉 -->
+    <div class="ai-side" id="ai-side">
+      <div class="ai-side-head">
+        <span>💬 我的对话</span>
+        <button class="ai-mini-btn" onclick="newSession()" title="新建" style="color:#5cd9f0;">＋ 新建</button>
+      </div>
+      <div class="ai-side-list" id="ai-side-list">
+        <div style="color:var(--text-dim,#8aa8d6);text-align:center;padding:20px;font-size:12px;">加载中…</div>
+      </div>
+    </div>
+
+    <div id="ai-messages" class="ai-messages">
+      <div class="ai-msg ai">
+        <div class="msg-avatar">{{ dolphin(28, 'dolphin avatar') }}</div>
+        <div class="ai-bubble-msg">
+          🐬 <b>湾湾鲸</b>来啦！我是粤港澳大湾区的小海豚，专门帮应届毕业生找驿站、查政策~<br/><br/>
+          可以问我：<br/>
+          • <span class="quick" onclick="quickAsk(this)">我是 2026 届，深圳哪些驿站适合我？</span><br/>
+          • <span class="quick" onclick="quickAsk(this)">广州人才补贴怎么申请？</span><br/>
+          • <span class="quick" onclick="quickAsk(this)">东莞松山湖驿站联系方式？</span><br/>
+          • <span class="quick" onclick="quickAsk(this)">驿站码丢了怎么办？</span>
+        </div>
+      </div>
+    </div>
+    <div class="ai-input">
+      <div id="ai-image-preview" class="ai-image-preview" style="display:none;"></div>
+      <textarea id="ai-q" placeholder="问湾湾鲸吧…（Enter 发送，Shift+Enter 换行；可粘贴/拖拽图片）" rows="2"></textarea>
+      <input type="file" id="ai-file" accept="image/*" style="display:none;" onchange="handlePickFile(this)" />
+      <button id="ai-img-btn" class="ai-img-btn" onclick="document.getElementById('ai-file').click()" title="上传图片提问">📎</button>
+      <button id="ai-send" onclick="sendAI()">发送</button>
+    </div>
+    <div class="ai-resize" id="ai-resize-handle" title="拖动调整大小"></div>
+  </div>
+
+  <style>
+    /* ===== 浮球 ===== */
+    #ai-bubble {
+      position: fixed; right: 22px; bottom: 22px; z-index: 9998;
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 18px 8px 10px; border-radius: 999px;
+      background: linear-gradient(135deg, #ffc1d8 0%, #ff90b8 60%, #ff6b9b 100%);
+      color: #5a0820; font-weight: 800;
+      box-shadow: 0 10px 28px rgba(255,107,154,0.45), 0 0 0 4px rgba(255,193,216,0.32);
+      cursor: pointer; transition: transform .25s cubic-bezier(.5,1.6,.4,1);
+      user-select: none;
+    }
+    #ai-bubble:hover { transform: translateY(-3px) scale(1.04); }
+    #ai-bubble:active { transform: scale(0.96); }
+
+    .chick-wrap { position: relative; line-height: 0; }
+    .dolphin { display:block; filter: drop-shadow(0 3px 5px rgba(180,30,80,0.25)); }
+
+    /* —— 待机：缓慢呼吸 + 珊瑚芽飘 —— */
+    .dolphin.breath { animation: dolBreath 2.8s ease-in-out infinite; transform-origin: 50% 80%; }
+    @keyframes dolBreath {
+      0%, 100% { transform: translateY(0) rotate(-1.5deg) scale(1); }
+      50%      { transform: translateY(-3px) rotate(1.5deg) scale(1.025); }
+    }
+    .dolphin .d-coral {
+      transform-origin: 40px 14px;
+      animation: coralWave 3.2s ease-in-out infinite;
+    }
+    @keyframes coralWave {
+      0%, 100% { transform: rotate(-6deg); }
+      50%      { transform: rotate(6deg); }
+    }
+
+    /* —— 眨眼（自动循环） —— */
+    .dolphin .d-eyes {
+      animation: blink 4.2s ease-in-out infinite;
+      transform-box: fill-box; transform-origin: center;
+    }
+    @keyframes blink {
+      0%, 92%, 96%, 100% { transform: scaleY(1); }
+      94% { transform: scaleY(0.08); }
+    }
+
+    /* —— 思考状态：眼睛飞速眨 + 珊瑚芽快摆 —— */
+    .dolphin.thinking .d-eyes { animation: blinkFast 0.7s ease-in-out infinite; }
+    .dolphin.thinking .d-coral { animation: coralWave 0.8s ease-in-out infinite; }
+    @keyframes blinkFast {
+      0%, 60%, 100% { transform: scaleY(1); }
+      80% { transform: scaleY(0.1); }
+    }
+
+    /* —— 说话状态：嘴巴一张一合 + 整体跳动 —— */
+    .dolphin.speaking { animation: dolJump 0.5s ease-in-out infinite; }
+    .dolphin.speaking .d-mouth {
+      animation: mouth 0.45s ease-in-out infinite;
+      transform-box: fill-box; transform-origin: center;
+    }
+    @keyframes dolJump {
+      0%, 100% { transform: translateY(0) rotate(-1deg); }
+      50%      { transform: translateY(-4px) rotate(1deg); }
+    }
+    @keyframes mouth {
+      0%, 100% { transform: scaleY(1); }
+      50%      { transform: scaleY(0.3) translateY(2px); }
+    }
+
+    /* Hi 小气泡 */
+    .hi-pop {
+      position: absolute; top: -2px; right: -10px;
+      background: #fff; color: #ff6b9b;
+      font-size: 11px; font-weight: 800;
+      padding: 2px 7px; border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      animation: hiPop 5s ease-in-out infinite;
+      opacity: 0; transform: scale(0.8);
+    }
+    @keyframes hiPop {
+      0%, 60%, 100% { opacity: 0; transform: scale(0.8) translateY(4px); }
+      10%, 50%      { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .bubble-text { display: flex; flex-direction: column; line-height: 1.15; }
+    .bt-name { font-size: 14px; font-weight: 800; }
+    .bt-sub { font-size: 10px; opacity: .65; font-weight: 600; letter-spacing: .5px; }
+
+    /* ===== 工具栏 ===== */
+    .ai-toolbar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 14px;
+      background: linear-gradient(180deg, rgba(20,36,84,0.55), rgba(8,18,48,0.75));
+      border-bottom: 1px solid rgba(78,161,255,0.22);
+      font-size: 12px;
+    }
+    .ai-toolbar select {
+      flex: 1; min-width: 0;
+      padding: 5px 10px; font-size: 12px;
+      background: rgba(6,14,34,0.7); border: 1px solid rgba(78,161,255,0.30);
+      color: #e6f0ff; border-radius: 8px; outline: none;
+      cursor: pointer; transition: border-color .15s, box-shadow .15s;
+    }
+    .ai-toolbar select:hover { border-color: #4ea1ff; }
+    .ai-toolbar select:focus { border-color: #4ea1ff; box-shadow: 0 0 0 3px rgba(78,161,255,0.18); }
+    .ai-toolbar .sw {
+      display: flex; align-items: center; gap: 4px; cursor: pointer;
+      color: #a8c0e8; padding: 4px 9px; border-radius: 8px;
+      background: rgba(6,14,34,0.55); border: 1px solid rgba(78,161,255,0.22);
+      white-space: nowrap; transition: all .15s;
+    }
+    .ai-toolbar .sw:hover { color: #e6f0ff; border-color: rgba(78,161,255,0.45); }
+    .ai-toolbar .sw input { margin: 0; cursor: pointer; accent-color: #4ea1ff; }
+    .ai-toolbar .sw:has(input:checked) {
+      background: rgba(44,123,255,0.22);
+      border-color: rgba(78,161,255,0.55); color: #cfe6ff;
+      box-shadow: inset 0 0 8px rgba(78,161,255,0.18);
+    }
+    .ai-mini-btn {
+      padding: 4px 9px; background: transparent; border: 1px solid rgba(78,161,255,0.22);
+      color: #8aa8d6; border-radius: 8px; cursor: pointer; font-size: 13px;
+      transition: all .15s; flex-shrink: 0;
+    }
+    .ai-mini-btn:hover { background: rgba(255,91,110,0.15); color: #ff8b9a; border-color: rgba(255,91,110,0.45); }
+    .ai-mini-btn.ai-side-toggle:hover { background: rgba(78,161,255,0.18); color: #cfe6ff; border-color: rgba(78,161,255,0.45); }
+
+    /* ===== 会话抽屉 ===== */
+    .ai-side {
+      position: absolute; left: 0; top: 50px; bottom: 0;
+      width: 0; overflow: hidden;
+      background: linear-gradient(180deg, rgba(8,18,48,0.92), rgba(6,14,34,0.95));
+      border-right: 1px solid rgba(78,161,255,0.22);
+      transition: width .25s cubic-bezier(.5,1.6,.4,1);
+      z-index: 5;
+      display: flex; flex-direction: column;
+    }
+    .ai-side.open { width: 200px; }
+    #ai-panel.maximized .ai-side.open,
+    #ai-panel.fullscreen .ai-side.open { width: 240px; }
+    .ai-side-head {
+      padding: 12px 14px; font-size: 12.5px; color: #cfe6ff; font-weight: 600;
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid rgba(78,161,255,0.18);
+      flex-shrink: 0;
+    }
+    .ai-side-head .ai-mini-btn {
+      padding: 2px 8px; font-size: 11px;
+    }
+    .ai-side-list {
+      flex: 1; overflow-y: auto; padding: 8px;
+      scrollbar-width: thin; scrollbar-color: rgba(78,161,255,0.4) transparent;
+    }
+    .ai-side-list::-webkit-scrollbar { width: 4px; }
+    .ai-side-list::-webkit-scrollbar-thumb { background: rgba(78,161,255,0.3); border-radius: 2px; }
+    .ai-side-item {
+      position: relative;
+      padding: 8px 26px 8px 10px; margin-bottom: 4px;
+      border-radius: 8px; cursor: pointer;
+      background: rgba(20,36,84,0.35);
+      border: 1px solid transparent;
+      transition: all .15s;
+    }
+    .ai-side-item:hover {
+      background: rgba(44,123,255,0.18);
+      border-color: rgba(78,161,255,0.30);
+    }
+    .ai-side-item.active {
+      background: linear-gradient(135deg, rgba(44,123,255,0.32), rgba(0,225,255,0.18));
+      border-color: rgba(78,161,255,0.55);
+      box-shadow: 0 4px 12px rgba(44,123,255,0.20);
+    }
+    .ai-side-item .si-title {
+      font-size: 12.5px; color: #e6f0ff; font-weight: 600;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ai-side-item.active .si-title { color: #fff; }
+    .ai-side-item .si-sub {
+      font-size: 10.5px; color: #7a93c4; margin-top: 3px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ai-side-item .si-actions {
+      position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+      display: none; gap: 2px;
+    }
+    .ai-side-item:hover .si-actions { display: flex; }
+    .ai-side-item .si-act {
+      width: 20px; height: 20px; border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      color: #8aa8d6; font-size: 11px; cursor: pointer;
+      background: rgba(0,0,0,0.30);
+    }
+    .ai-side-item .si-act:hover { background: rgba(255,91,110,0.30); color: #fff; }
+    /* 抽屉打开时整体右移聊天区 */
+    #ai-panel.side-open .ai-toolbar,
+    #ai-panel.side-open .ai-messages,
+    #ai-panel.side-open .ai-input { padding-left: 0; }
+    #ai-panel.side-open .ai-messages { margin-left: 200px; }
+    #ai-panel.side-open .ai-input { margin-left: 200px; }
+    #ai-panel.side-open .ai-toolbar { margin-left: 200px; transition: margin-left .25s; }
+    #ai-panel.maximized.side-open .ai-toolbar,
+    #ai-panel.maximized.side-open .ai-messages,
+    #ai-panel.maximized.side-open .ai-input,
+    #ai-panel.fullscreen.side-open .ai-toolbar,
+    #ai-panel.fullscreen.side-open .ai-messages,
+    #ai-panel.fullscreen.side-open .ai-input { margin-left: 240px; }
+
+    /* ===== 对话面板（蓝色科技风） ===== */
+    #ai-panel {
+      display: none; position: fixed; right: 22px; bottom: 92px; z-index: 9999;
+      width: 420px; height: 580px;
+      min-width: 340px; min-height: 420px;
+      max-width: calc(100vw - 32px); max-height: calc(100vh - 32px);
+      background:
+        radial-gradient(ellipse at top right, rgba(44,123,255,0.18), transparent 55%),
+        linear-gradient(180deg, #0c1838 0%, #08122e 100%);
+      border: 1px solid rgba(78,161,255,0.32);
+      border-radius: 18px; overflow: hidden;
+      box-shadow:
+        0 24px 60px rgba(0,12,40,0.55),
+        0 0 0 1px rgba(78,161,255,0.12),
+        inset 0 1px 0 rgba(255,255,255,0.05);
+      flex-direction: column;
+      animation: panelIn .28s cubic-bezier(.5,1.6,.4,1);
+    }
+    @keyframes panelIn {
+      from { opacity: 0; transform: translateY(20px) scale(.95); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    #ai-panel.open { display: flex; }
+    #ai-panel.maximized {
+      right: 22px !important; bottom: 22px !important;
+      left: auto !important; top: auto !important;
+      width: min(720px, calc(100vw - 44px)) !important;
+      height: min(820px, calc(100vh - 44px)) !important;
+    }
+    #ai-panel.fullscreen {
+      right: 0 !important; bottom: 0 !important; left: 0 !important; top: 0 !important;
+      width: 100vw !important; height: 100vh !important;
+      border-radius: 0; border: none;
+    }
+
+    .ai-head {
+      padding: 12px 14px 12px 16px; font-weight: 700; color: #fff;
+      background: linear-gradient(90deg, #1d3a82 0%, #2c7bff 50%, #4ea1ff 100%);
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 14px; letter-spacing: .02em;
+      cursor: move; user-select: none;
+      box-shadow: inset 0 -1px 0 rgba(255,255,255,0.08);
+      flex-shrink: 0;
+    }
+    .ai-head-left { display: flex; align-items: center; gap: 10px; pointer-events: none; }
+    .ai-head-left .dolphin { pointer-events: auto; }
+    .ai-head-tools { display: flex; align-items: center; gap: 4px; }
+    .ai-tool {
+      width: 28px; height: 28px; border-radius: 7px;
+      display: inline-flex; align-items: center; justify-content: center;
+      cursor: pointer; color: rgba(255,255,255,0.85);
+      font-size: 14px; transition: background .15s;
+    }
+    .ai-tool:hover { background: rgba(255,255,255,0.18); color: #fff; }
+    .ai-tool.ai-close { font-size: 22px; line-height: 1; }
+    .ai-tool.ai-close:hover { background: rgba(255,80,100,0.55); }
+
+    .ai-messages {
+      flex: 1; overflow-y: auto; padding: 16px;
+      display: flex; flex-direction: column; gap: 14px;
+      background:
+        radial-gradient(circle at 90% 0%, rgba(0,225,255,0.07), transparent 40%),
+        radial-gradient(circle at 0% 100%, rgba(44,123,255,0.10), transparent 45%);
+      scrollbar-width: thin; scrollbar-color: rgba(78,161,255,0.4) transparent;
+    }
+    .ai-messages::-webkit-scrollbar { width: 6px; }
+    .ai-messages::-webkit-scrollbar-thumb { background: rgba(78,161,255,0.35); border-radius: 3px; }
+    .ai-messages::-webkit-scrollbar-thumb:hover { background: rgba(78,161,255,0.55); }
+
+    .ai-msg { display: flex; align-items: flex-start; gap: 10px; }
+    .ai-msg.user { justify-content: flex-end; }
+    .ai-msg.ai .msg-avatar {
+      flex-shrink: 0; width: 34px; height: 34px;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, rgba(44,123,255,0.20), rgba(0,225,255,0.10));
+      border: 1px solid rgba(78,161,255,0.32);
+      border-radius: 50%;
+      box-shadow: 0 0 14px rgba(78,161,255,0.12);
+      transition: transform .2s;
+    }
+    .ai-msg.ai.thinking .msg-avatar .dolphin { animation: avatarPulse 0.8s ease-in-out infinite; }
+    .ai-msg.ai.speaking .msg-avatar .dolphin { animation: avatarBob 0.5s ease-in-out infinite; }
+    @keyframes avatarPulse {
+      0%, 100% { transform: scale(1); }
+      50%      { transform: scale(1.15); }
+    }
+    @keyframes avatarBob {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(-3px); }
+    }
+
+    .ai-bubble-msg {
+      max-width: 82%; padding: 11px 15px; border-radius: 14px;
+      font-size: 13.5px; line-height: 1.75; word-break: break-word; white-space: normal;
+    }
+    .ai-msg.ai .ai-bubble-msg {
+      background: linear-gradient(180deg, rgba(20,36,84,0.65), rgba(12,24,56,0.75));
+      color: #dde9ff;
+      border: 1px solid rgba(78,161,255,0.28);
+      border-top-left-radius: 4px;
+      box-shadow: 0 4px 14px rgba(0,12,40,0.35);
+    }
+    .ai-msg.user .ai-bubble-msg {
+      background: linear-gradient(135deg, #2c7bff, #4ea1ff); color: #fff;
+      border-top-right-radius: 4px;
+      box-shadow: 0 4px 14px rgba(44,123,255,0.32);
+    }
+    .ai-bubble-msg a { color: #5cd9f0; text-decoration: underline; }
+    .ai-bubble-msg b { color: #5cd9f0; }
+
+    .quick {
+      display: inline-block; padding: 3px 11px; margin: 3px 0;
+      background: rgba(44,123,255,0.18); color: #93c5ff;
+      border: 1px dashed rgba(78,161,255,0.45); border-radius: 999px;
+      cursor: pointer; transition: all .15s; font-size: 12px;
+    }
+    .quick:hover {
+      background: rgba(44,123,255,0.32); color: #cfe6ff;
+      border-style: solid; transform: translateX(2px);
+    }
+    .ai-input {
+      padding: 12px; border-top: 1px solid rgba(78,161,255,0.22);
+      display: flex; gap: 8px; align-items: flex-end;
+      background: linear-gradient(180deg, rgba(8,18,48,0.7), rgba(6,14,34,0.85));
+      flex-shrink: 0;
+      position: relative;
+    }
+    .ai-image-preview {
+      position: absolute; left: 12px; right: 12px; bottom: calc(100% - 0px);
+      transform: translateY(-6px);
+      background: rgba(20,36,84,0.95);
+      border: 1px solid rgba(78,161,255,0.32);
+      border-radius: 10px;
+      padding: 8px;
+      display: flex; gap: 8px; align-items: center;
+      z-index: 3;
+      box-shadow: 0 6px 18px rgba(0,12,40,0.4);
+    }
+    .ai-image-preview img {
+      width: 56px; height: 56px; object-fit: cover;
+      border-radius: 6px; border: 1px solid rgba(78,161,255,0.30);
+    }
+    .ai-image-preview .pi-info { flex: 1; min-width: 0; font-size: 12px; color: #cfe6ff; line-height: 1.5; }
+    .ai-image-preview .pi-info b { color: #5cd9f0; }
+    .ai-image-preview .pi-close {
+      width: 22px; height: 22px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: rgba(255,80,100,0.25); color: #ff8b9a;
+      cursor: pointer; font-size: 13px; flex-shrink: 0;
+    }
+    .ai-image-preview .pi-close:hover { background: rgba(255,80,100,0.55); color: #fff; }
+    .ai-image-preview.parsing .pi-info::after {
+      content: " 🤖 看图分析中…"; color: #ffb400;
+    }
+    .ai-img-btn {
+      flex-shrink: 0;
+      width: 38px; height: 38px;
+      background: rgba(6,14,34,0.85);
+      border: 1px solid rgba(78,161,255,0.28);
+      border-radius: 10px; color: #93b8f5;
+      cursor: pointer; font-size: 16px;
+      transition: all .15s;
+    }
+    .ai-img-btn:hover { background: rgba(44,123,255,0.20); color: #5cd9f0; border-color: rgba(78,161,255,0.55); }
+    .ai-img-btn.active { background: rgba(0,225,255,0.18); color: #5cd9f0; border-color: rgba(0,225,255,0.45); }
+    .ai-input textarea {
+      flex: 1; padding: 10px 12px; resize: none;
+      background: rgba(6,14,34,0.85); border: 1px solid rgba(78,161,255,0.28);
+      border-radius: 10px; color: #e6f0ff; font-size: 13.5px; outline: none;
+      font-family: inherit; line-height: 1.5;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .ai-input textarea::placeholder { color: #5a73a3; }
+    .ai-input textarea:focus { border-color: #4ea1ff; box-shadow: 0 0 0 3px rgba(78,161,255,0.18); }
+    /* 拖拽时整体高亮 */
+    #ai-panel.drag-hover .ai-input { background: rgba(0,225,255,0.10); border-top-color: rgba(0,225,255,0.45); }
+
+    /* 用户图片消息 */
+    .ai-msg.user .user-image {
+      max-width: 200px; max-height: 200px;
+      border-radius: 10px; margin-bottom: 6px;
+      border: 1px solid rgba(78,161,255,0.32);
+      box-shadow: 0 4px 14px rgba(0,12,40,0.30);
+      display: block;
+    }
+    .ai-input button {
+      padding: 0 22px; border: none; border-radius: 10px;
+      background: linear-gradient(135deg, #2c7bff, #4ea1ff);
+      color: #fff; font-size: 13.5px; cursor: pointer; font-weight: 700;
+      box-shadow: 0 4px 14px rgba(44,123,255,0.40), inset 0 1px 0 rgba(255,255,255,0.18);
+      transition: transform .15s, box-shadow .18s, filter .15s;
+    }
+    .ai-input button:hover { transform: translateY(-1px); filter: brightness(1.06); box-shadow: 0 6px 20px rgba(44,123,255,0.5); }
+    .ai-input button:active { transform: translateY(0); }
+    .ai-input button:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+    .ai-typing { display: inline-flex; gap: 4px; align-items: center; padding: 4px 0; }
+    .ai-typing span {
+      width: 6px; height: 6px; border-radius: 50%; background: #4ea1ff;
+      animation: dot 1.2s ease-in-out infinite;
+    }
+    .ai-typing span:nth-child(2) { animation-delay: .15s; }
+    .ai-typing span:nth-child(3) { animation-delay: .3s; }
+    @keyframes dot {
+      0%, 80%, 100% { opacity: .25; transform: translateY(0); }
+      40%           { opacity: 1;   transform: translateY(-3px); }
+    }
+
+    /* ===== 引文角标 + 卡片 ===== */
+    .cite-ref {
+      display: inline-block; padding: 0 5px; margin: 0 2px;
+      font-size: 10px; font-weight: 700;
+      color: #5cd9f0; background: rgba(0,225,255,0.12);
+      border: 1px solid rgba(0,225,255,0.32);
+      border-radius: 4px; cursor: pointer;
+      vertical-align: super; line-height: 1.6;
+      transition: all .15s;
+    }
+    .cite-ref:hover { background: rgba(0,225,255,0.30); color: #fff; transform: translateY(-1px); }
+    .cite-block {
+      margin-top: 12px; padding: 10px 12px;
+      background: rgba(6,14,34,0.55);
+      border: 1px solid rgba(78,161,255,0.18);
+      border-radius: 10px;
+    }
+    .cite-header {
+      font-size: 11.5px; color: #a8c0e8; font-weight: 600;
+      margin-bottom: 8px; letter-spacing: .02em;
+    }
+    .cite-header .cite-tip {
+      font-weight: 400; color: #7a93c4; font-size: 10.5px; margin-left: 8px;
+    }
+    .cite-card {
+      display: flex; align-items: flex-start; gap: 8px;
+      padding: 8px 10px; margin-bottom: 6px; cursor: pointer;
+      background: rgba(20,36,84,0.45);
+      border: 1px solid rgba(78,161,255,0.14);
+      border-radius: 8px; transition: all .15s;
+    }
+    .cite-card:hover {
+      background: rgba(44,123,255,0.18);
+      border-color: rgba(78,161,255,0.4);
+      transform: translateX(2px);
+    }
+    .cite-card:last-child { margin-bottom: 0; }
+    .cite-num {
+      flex-shrink: 0; min-width: 22px;
+      font-size: 11px; font-weight: 700; color: #5cd9f0;
+      text-align: center;
+    }
+    .cite-icon { flex-shrink: 0; font-size: 14px; }
+    .cite-info { flex: 1; min-width: 0; }
+    .cite-title {
+      display: block; font-size: 12.5px; font-weight: 600; color: #cfe6ff;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .cite-snippet {
+      display: block; font-size: 11px; color: #8aa8d6;
+      margin-top: 2px; line-height: 1.5;
+      overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
+      -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    }
+    .cite-popover {
+      position: fixed; z-index: 10001; display: none;
+      width: 280px; padding: 12px 14px;
+      background: linear-gradient(180deg, rgba(20,36,84,0.95), rgba(12,24,56,0.98));
+      border: 1px solid rgba(78,161,255,0.4);
+      border-radius: 10px;
+      box-shadow: 0 12px 30px rgba(0,12,40,0.55);
+      backdrop-filter: blur(8px);
+      animation: popIn .18s ease;
+    }
+    @keyframes popIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+
+    /* 右下角缩放手柄 */
+    .ai-resize {
+      position: absolute; right: 0; bottom: 0;
+      width: 18px; height: 18px;
+      cursor: nwse-resize; z-index: 10;
+      background:
+        linear-gradient(135deg, transparent 50%, rgba(78,161,255,0.55) 52%, rgba(78,161,255,0.55) 56%, transparent 58%,
+                                              rgba(78,161,255,0.45) 62%, rgba(78,161,255,0.45) 66%, transparent 68%,
+                                              rgba(78,161,255,0.35) 72%, rgba(78,161,255,0.35) 76%, transparent 78%);
+      opacity: .85; transition: opacity .15s;
+    }
+    .ai-resize:hover { opacity: 1; }
+    #ai-panel.fullscreen .ai-resize { display: none; }
+
+    @media (max-width: 600px) {
+      #ai-panel { right: 8px; left: 8px; width: auto; bottom: 84px; height: 70vh; }
+      #ai-bubble { right: 14px; bottom: 14px; padding: 6px 14px 6px 8px; }
+      .bubble-text { display: none; }
+      .ai-resize { display: none; }
+    }
+
+    /* ===== 白天模式：AI 浮窗调色 ===== */
+    :root[data-theme="light"] #ai-panel {
+      background:
+        radial-gradient(ellipse at top right, rgba(37,99,235,0.08), transparent 55%),
+        linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+      border-color: rgba(37,99,235,0.20);
+      box-shadow:
+        0 24px 48px rgba(30,64,175,0.15),
+        0 0 0 1px rgba(37,99,235,0.06);
+    }
+    :root[data-theme="light"] .ai-toolbar {
+      background: linear-gradient(180deg, #f1f5fb, #ffffff);
+      border-bottom: 1px solid rgba(37,99,235,0.14);
+    }
+    :root[data-theme="light"] .ai-toolbar select,
+    :root[data-theme="light"] .ai-toolbar .sw,
+    :root[data-theme="light"] .ai-side-list .ai-side-item {
+      background: #ffffff;
+      border-color: rgba(37,99,235,0.16);
+      color: #475569;
+    }
+    :root[data-theme="light"] .ai-toolbar .sw:has(input:checked) {
+      background: #dbeafe; color: #1e40af; border-color: rgba(37,99,235,0.45);
+    }
+    :root[data-theme="light"] .ai-mini-btn {
+      background: #ffffff; color: #64748b; border-color: rgba(37,99,235,0.18);
+    }
+    :root[data-theme="light"] .ai-side {
+      background: #f8fafc; border-right-color: rgba(37,99,235,0.14);
+    }
+    :root[data-theme="light"] .ai-side-item.active {
+      background: linear-gradient(135deg, #dbeafe, #cffafe);
+      border-color: #93c5fd; box-shadow: 0 4px 12px rgba(37,99,235,0.08);
+    }
+    :root[data-theme="light"] .ai-side-item .si-title { color: #1e293b; }
+    :root[data-theme="light"] .ai-side-item .si-sub { color: #64748b; }
+    :root[data-theme="light"] .ai-side-head { color: #1e40af; border-bottom-color: rgba(37,99,235,0.14); }
+
+    :root[data-theme="light"] .ai-messages {
+      background:
+        radial-gradient(circle at 90% 0%, #cffafe 0%, transparent 40%),
+        radial-gradient(circle at 0% 100%, #dbeafe 0%, transparent 45%),
+        #ffffff;
+    }
+    :root[data-theme="light"] .ai-msg.ai .ai-bubble-msg {
+      background: #ffffff; color: #1e293b;
+      border-color: rgba(37,99,235,0.16);
+      box-shadow: 0 2px 8px rgba(30,64,175,0.06);
+    }
+    :root[data-theme="light"] .ai-msg.ai .msg-avatar {
+      background: linear-gradient(135deg, #dbeafe, #cffafe);
+      border-color: rgba(37,99,235,0.20);
+      box-shadow: 0 0 10px rgba(37,99,235,0.06);
+    }
+    :root[data-theme="light"] .ai-bubble-msg a,
+    :root[data-theme="light"] .ai-bubble-msg b { color: #0e7490; }
+    :root[data-theme="light"] .quick {
+      background: #eef4ff; color: #1e40af; border-color: rgba(37,99,235,0.30);
+    }
+    :root[data-theme="light"] .quick:hover { background: #dbeafe; color: #1e3a8a; }
+    :root[data-theme="light"] .ai-input {
+      background: #f8fafc; border-top-color: rgba(37,99,235,0.14);
+    }
+    :root[data-theme="light"] .ai-input textarea {
+      background: #ffffff; color: #1e293b;
+      border-color: rgba(37,99,235,0.20);
+    }
+    :root[data-theme="light"] .ai-input textarea::placeholder { color: #94a3b8; }
+    :root[data-theme="light"] .ai-img-btn {
+      background: #ffffff; color: #2563eb; border-color: rgba(37,99,235,0.20);
+    }
+    :root[data-theme="light"] .ai-img-btn:hover { background: #dbeafe; }
+    :root[data-theme="light"] .cite-block {
+      background: #f8fafc; border-color: rgba(37,99,235,0.16);
+    }
+    :root[data-theme="light"] .cite-card {
+      background: #ffffff; border-color: rgba(37,99,235,0.12);
+    }
+    :root[data-theme="light"] .cite-card:hover {
+      background: #eef4ff; border-color: rgba(37,99,235,0.30);
+    }
+    :root[data-theme="light"] .cite-num { color: #0e7490; }
+    :root[data-theme="light"] .cite-title { color: #1e293b; }
+    :root[data-theme="light"] .cite-snippet { color: #64748b; }
+    :root[data-theme="light"] .cite-header { color: #475569; }
+    :root[data-theme="light"] .cite-header .cite-tip { color: #94a3b8; }
+    :root[data-theme="light"] .cite-ref {
+      background: #ecfeff; color: #0e7490; border-color: rgba(14,165,183,0.30);
+    }
+    :root[data-theme="light"] .cite-ref:hover { background: #67e8f9; color: #ffffff; }
+    :root[data-theme="light"] .cite-popover {
+      background: linear-gradient(180deg, #ffffff, #f8fafc);
+      border-color: rgba(37,99,235,0.30);
+      box-shadow: 0 12px 24px rgba(30,64,175,0.15);
+      color: #1e293b;
+    }
+    :root[data-theme="light"] .cite-popover * { color: #1e293b !important; }
+
+    :root[data-theme="light"] .ai-image-preview {
+      background: #ffffff;
+      border-color: rgba(37,99,235,0.30);
+      color: #1e293b;
+    }
+    :root[data-theme="light"] .ai-image-preview .pi-info { color: #475569; }
+    :root[data-theme="light"] .ai-image-preview .pi-info b { color: #0e7490; }
+  </style>
+
+  <script>
+    const aiHistory = [];
+    let currentSessionId = null;
+
+    function toggleAI() {
+      const panel = document.getElementById('ai-panel');
+      panel.classList.toggle('open');
+      if (panel.classList.contains('open')) {
+        loadProviders();
+        loadSessions();
+        // 恢复上次记忆的位置/尺寸
+        restorePanelGeometry();
+      }
+    }
+    function quickAsk(el) {
+      document.getElementById('ai-q').value = el.textContent.trim();
+      sendAI();
+    }
+    async function clearAI() {
+      if (!confirm('清空当前对话的所有消息？')) return;
+      aiHistory.length = 0;
+      const box = document.getElementById('ai-messages');
+      while (box.children.length > 1) box.removeChild(box.lastChild);
+      // 同时清空后端
+      if (currentSessionId) {
+        try {
+          await fetch(`/api/chat/sessions/${currentSessionId}/clear`, {method: 'POST'});
+        } catch(e) {}
+        loadSessions();
+      }
+    }
+
+    /* ============ 会话管理 ============ */
+    function toggleSessions() {
+      const panel = document.getElementById('ai-panel');
+      const side = document.getElementById('ai-side');
+      side.classList.toggle('open');
+      panel.classList.toggle('side-open', side.classList.contains('open'));
+      if (side.classList.contains('open')) loadSessions();
+    }
+    async function loadSessions() {
+      try {
+        const r = await fetch('/api/chat/sessions');
+        const j = await r.json();
+        const list = document.getElementById('ai-side-list');
+        if (!j.ok || !j.items.length) {
+          list.innerHTML = `<div style="color:#7a93c4;text-align:center;padding:20px;font-size:12px;">还没有对话<br/><span style="font-size:11px;opacity:.7;">点击 ＋ 新建</span></div>`;
+          return;
+        }
+        list.innerHTML = j.items.map(s => `
+          <div class="ai-side-item ${s.id === currentSessionId ? 'active' : ''}"
+               onclick="switchSession(${s.id}, event)" data-sid="${s.id}">
+            <div class="si-title">${escapeHTML(s.title)}</div>
+            <div class="si-sub">${s.msg_count} 条 · ${s.updated_at}</div>
+            <div class="si-actions">
+              <span class="si-act" onclick="renameSession(${s.id}, event)" title="重命名">✎</span>
+              <span class="si-act" onclick="deleteSession(${s.id}, event)" title="删除">×</span>
+            </div>
+          </div>
+        `).join('');
+      } catch(e) { console.error(e); }
+    }
+    async function newSession() {
+      try {
+        const r = await fetch('/api/chat/sessions', {method: 'POST'});
+        const j = await r.json();
+        if (j.ok) {
+          currentSessionId = j.id;
+          aiHistory.length = 0;
+          renderEmptyChat();
+          loadSessions();
+        }
+      } catch(e) {}
+    }
+    async function switchSession(sid, ev) {
+      if (ev && ev.target && ev.target.closest('.si-actions')) return;
+      currentSessionId = sid;
+      // 拉历史
+      try {
+        const r = await fetch(`/api/chat/sessions/${sid}/messages`);
+        const j = await r.json();
+        if (!j.ok) return;
+        aiHistory.length = 0;
+        const box = document.getElementById('ai-messages');
+        // 清空（保留欢迎语）
+        while (box.children.length > 1) box.removeChild(box.lastChild);
+        if (j.items.length === 0) {
+          // 空会话保留欢迎语
+        } else {
+          // 移除欢迎语
+          if (box.firstChild) box.removeChild(box.firstChild);
+          for (const m of j.items) {
+            if (m.role === 'user') {
+              appendAI('user', m.content);
+              aiHistory.push({role: 'user', content: m.content});
+            } else {
+              const cites = m.citations || [];
+              const wrap = document.createElement('div');
+              wrap.className = 'ai-msg ai';
+              const av = document.createElement('div');
+              av.className = 'msg-avatar';
+              av.appendChild(buildDolphinSVG(28));
+              wrap.appendChild(av);
+              const bub = document.createElement('div');
+              bub.className = 'ai-bubble-msg';
+              bub.innerHTML = renderMarkdown(m.content || '', cites) +
+                              (cites.length ? renderCitationCards(cites) : '');
+              wrap.appendChild(bub);
+              box.appendChild(wrap);
+              aiHistory.push({role: 'assistant', content: m.content});
+            }
+          }
+          box.scrollTop = box.scrollHeight;
+        }
+      } catch(e) {}
+      loadSessions();
+    }
+    async function renameSession(sid, ev) {
+      if (ev) ev.stopPropagation();
+      const cur = document.querySelector(`.ai-side-item[data-sid="${sid}"] .si-title`);
+      const old = cur ? cur.textContent : '';
+      const title = prompt('重命名对话：', old);
+      if (!title || title === old) return;
+      try {
+        await fetch(`/api/chat/sessions/${sid}/rename`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({title})
+        });
+        loadSessions();
+      } catch(e) {}
+    }
+    async function deleteSession(sid, ev) {
+      if (ev) ev.stopPropagation();
+      if (!confirm('删除此对话？所有消息将被清除。')) return;
+      try {
+        await fetch(`/api/chat/sessions/${sid}`, {method: 'DELETE'});
+        if (currentSessionId === sid) {
+          currentSessionId = null;
+          renderEmptyChat();
+        }
+        loadSessions();
+      } catch(e) {}
+    }
+    /* ============ 图片上传：粘贴/拖拽/点击 ============ */
+    let pendingImage = null;   // {previewUrl, description}
+
+    function handlePickFile(input) {
+      if (!input.files || !input.files[0]) return;
+      uploadImageFile(input.files[0]);
+      input.value = '';
+    }
+    async function uploadImageFile(file) {
+      if (!file.type.startsWith('image/')) {
+        alert('只能上传图片');
+        return;
+      }
+      if (file.size > 8 * 1024 * 1024) {
+        alert('图片超过 8MB');
+        return;
+      }
+      // 立即显示本地预览
+      const localUrl = URL.createObjectURL(file);
+      showImagePreview(localUrl, '🖼️ ' + (file.name || '图片') + '（' + (file.size / 1024).toFixed(0) + ' KB）', true);
+      const fd = new FormData();
+      fd.append('file', file);
+      try {
+        const r = await fetch('/api/ai/upload-image', {method: 'POST', body: fd});
+        const j = await r.json();
+        if (!j.ok) {
+          alert('❌ ' + (j.msg || '上传失败'));
+          clearImagePreview();
+          return;
+        }
+        pendingImage = {
+          preview_url: j.preview_url,
+          local_url: localUrl,
+          description: j.description,
+        };
+        showImagePreview(localUrl,
+          '🖼️ <b>已识别</b>：' + escapeHTML((j.description || '').slice(0, 60)) + '…<br/>' +
+          '<span style="color:#7a93c4;font-size:11px;">输入问题后点发送，AI 会基于图片回答</span>',
+          false);
+      } catch (e) {
+        alert('❌ 上传失败：' + e);
+        clearImagePreview();
+      }
+    }
+    function showImagePreview(url, info, parsing) {
+      const box = document.getElementById('ai-image-preview');
+      box.innerHTML = `
+        <img src="${url}" />
+        <div class="pi-info">${info}</div>
+        <span class="pi-close" onclick="clearImagePreview()" title="移除">×</span>
+      `;
+      box.classList.toggle('parsing', !!parsing);
+      box.style.display = '';
+    }
+    function clearImagePreview() {
+      const box = document.getElementById('ai-image-preview');
+      box.style.display = 'none';
+      box.innerHTML = '';
+      box.classList.remove('parsing');
+      if (pendingImage && pendingImage.local_url) URL.revokeObjectURL(pendingImage.local_url);
+      pendingImage = null;
+    }
+    /* 粘贴图片 */
+    document.addEventListener('paste', e => {
+      const panel = document.getElementById('ai-panel');
+      if (!panel.classList.contains('open')) return;
+      // 必须焦点在 textarea 才响应
+      if (document.activeElement && document.activeElement.id !== 'ai-q') return;
+      const items = (e.clipboardData || {}).items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            uploadImageFile(file);
+            return;
+          }
+        }
+      }
+    });
+    /* 拖拽图片 */
+    (function setupDropImage(){
+      const panel = document.getElementById('ai-panel');
+      panel.addEventListener('dragover', e => {
+        if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) {
+          e.preventDefault();
+          panel.classList.add('drag-hover');
+        }
+      });
+      panel.addEventListener('dragleave', e => {
+        if (e.target === panel) panel.classList.remove('drag-hover');
+      });
+      panel.addEventListener('drop', e => {
+        panel.classList.remove('drag-hover');
+        if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files[0]) return;
+        e.preventDefault();
+        uploadImageFile(e.dataTransfer.files[0]);
+      });
+    })();
+      const box = document.getElementById('ai-messages');
+      box.innerHTML = '';
+      const welcome = document.createElement('div');
+      welcome.className = 'ai-msg ai';
+      const av = document.createElement('div');
+      av.className = 'msg-avatar';
+      av.appendChild(buildDolphinSVG(28));
+      welcome.appendChild(av);
+      const bub = document.createElement('div');
+      bub.className = 'ai-bubble-msg';
+      bub.innerHTML = `🐬 <b>湾湾鲸</b>来啦！我是粤港澳大湾区的小海豚，专门帮应届毕业生找驿站、查政策~<br/><br/>
+        可以问我：<br/>
+        • <span class="quick" onclick="quickAsk(this)">我是 2026 届，深圳哪些驿站适合我？</span><br/>
+        • <span class="quick" onclick="quickAsk(this)">广州人才补贴怎么申请？</span><br/>
+        • <span class="quick" onclick="quickAsk(this)">东莞松山湖驿站联系方式？</span><br/>
+        • <span class="quick" onclick="quickAsk(this)">驿站码丢了怎么办？</span>`;
+      welcome.appendChild(bub);
+      box.appendChild(welcome);
+    }
+
+    /* ============ 拖动 / 缩放 / 全屏 ============ */
+    function savePanelGeometry() {
+      const p = document.getElementById('ai-panel');
+      if (p.classList.contains('fullscreen') || p.classList.contains('maximized')) return;
+      const rect = p.getBoundingClientRect();
+      try {
+        localStorage.setItem('ai_panel_geo', JSON.stringify({
+          left: rect.left, top: rect.top,
+          width: rect.width, height: rect.height
+        }));
+      } catch(e) {}
+    }
+    function restorePanelGeometry() {
+      const p = document.getElementById('ai-panel');
+      if (p.classList.contains('fullscreen') || p.classList.contains('maximized')) return;
+      try {
+        const raw = localStorage.getItem('ai_panel_geo');
+        if (!raw) return;
+        const g = JSON.parse(raw);
+        if (!g) return;
+        // 防止超出屏幕
+        const maxLeft = Math.max(0, window.innerWidth - 200);
+        const maxTop  = Math.max(0, window.innerHeight - 200);
+        const left = Math.min(Math.max(0, g.left), maxLeft);
+        const top  = Math.min(Math.max(0, g.top), maxTop);
+        const w = Math.min(Math.max(340, g.width), window.innerWidth - 16);
+        const h = Math.min(Math.max(420, g.height), window.innerHeight - 16);
+        p.style.left = left + 'px';
+        p.style.top  = top + 'px';
+        p.style.right = 'auto';
+        p.style.bottom = 'auto';
+        p.style.width = w + 'px';
+        p.style.height = h + 'px';
+      } catch(e) {}
+    }
+
+    function toggleAIMaximize() {
+      const p = document.getElementById('ai-panel');
+      p.classList.remove('fullscreen');
+      p.classList.toggle('maximized');
+      if (p.classList.contains('maximized')) {
+        // 清掉行内位置/尺寸，让 .maximized 的 CSS 生效
+        p.style.left = p.style.top = p.style.width = p.style.height = '';
+        p.style.right = ''; p.style.bottom = '';
+      } else {
+        restorePanelGeometry();
+      }
+    }
+    function toggleAIFullscreen() {
+      const p = document.getElementById('ai-panel');
+      p.classList.remove('maximized');
+      p.classList.toggle('fullscreen');
+      if (p.classList.contains('fullscreen')) {
+        p.style.left = p.style.top = p.style.width = p.style.height = '';
+        p.style.right = ''; p.style.bottom = '';
+      } else {
+        restorePanelGeometry();
+      }
+    }
+
+    /* 拖动：抓 .ai-head 移动整个面板 */
+    (function setupDrag(){
+      const handle = document.getElementById('ai-drag-handle');
+      const panel  = document.getElementById('ai-panel');
+      if (!handle || !panel) return;
+      let dx=0, dy=0, sx=0, sy=0, dragging=false;
+
+      handle.addEventListener('mousedown', e => {
+        // 点到工具按钮（×、⤢、⛶）不触发拖动
+        if (e.target.closest('.ai-head-tools')) return;
+        if (panel.classList.contains('fullscreen')) return;
+        // 退出 maximized 后再拖
+        if (panel.classList.contains('maximized')) {
+          panel.classList.remove('maximized');
+        }
+        const rect = panel.getBoundingClientRect();
+        sx = e.clientX; sy = e.clientY;
+        dx = rect.left; dy = rect.top;
+        // 切到 left/top 定位
+        panel.style.left = dx + 'px';
+        panel.style.top  = dy + 'px';
+        panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
+        dragging = true;
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+      });
+      window.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        let nx = dx + (e.clientX - sx);
+        let ny = dy + (e.clientY - sy);
+        const w = panel.offsetWidth, h = panel.offsetHeight;
+        nx = Math.min(Math.max(0, nx), window.innerWidth - 80);
+        ny = Math.min(Math.max(0, ny), window.innerHeight - 60);
+        panel.style.left = nx + 'px';
+        panel.style.top  = ny + 'px';
+      });
+      window.addEventListener('mouseup', () => {
+        if (dragging) {
+          dragging = false;
+          document.body.style.userSelect = '';
+          savePanelGeometry();
+        }
+      });
+    })();
+
+    /* 缩放：抓右下角手柄 */
+    (function setupResize(){
+      const handle = document.getElementById('ai-resize-handle');
+      const panel  = document.getElementById('ai-panel');
+      if (!handle || !panel) return;
+      let sx=0, sy=0, sw=0, sh=0, sLeft=0, sTop=0, resizing=false;
+      handle.addEventListener('mousedown', e => {
+        if (panel.classList.contains('fullscreen')) return;
+        if (panel.classList.contains('maximized')) panel.classList.remove('maximized');
+        const rect = panel.getBoundingClientRect();
+        sx = e.clientX; sy = e.clientY;
+        sw = rect.width; sh = rect.height;
+        sLeft = rect.left; sTop = rect.top;
+        // 锁定 left/top 定位
+        panel.style.left = sLeft + 'px';
+        panel.style.top  = sTop + 'px';
+        panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
+        resizing = true;
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'nwse-resize';
+        e.preventDefault();
+        e.stopPropagation();
+      });
+      window.addEventListener('mousemove', e => {
+        if (!resizing) return;
+        const nw = Math.min(Math.max(340, sw + (e.clientX - sx)), window.innerWidth  - sLeft - 8);
+        const nh = Math.min(Math.max(420, sh + (e.clientY - sy)), window.innerHeight - sTop  - 8);
+        panel.style.width  = nw + 'px';
+        panel.style.height = nh + 'px';
+      });
+      window.addEventListener('mouseup', () => {
+        if (resizing) {
+          resizing = false;
+          document.body.style.userSelect = '';
+          document.body.style.cursor = '';
+          savePanelGeometry();
+        }
+      });
+    })();
+
+    let providersLoaded = false;
+    async function loadProviders() {
+      if (providersLoaded) return;
+      try {
+        const r = await fetch('/api/ai/providers');
+        const j = await r.json();
+        const sel = document.getElementById('ai-provider');
+        sel.innerHTML = '';
+        if (!j.items || !j.items.length) {
+          sel.innerHTML = '<option value="">未配置 AI 模型</option>';
+          return;
+        }
+        let defaultId = '';
+        j.items.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.name + (p.is_default ? ' ⭐' : '');
+          if (p.is_default) defaultId = p.id;
+          sel.appendChild(opt);
+        });
+        const saved = localStorage.getItem('ai_provider');
+        if (saved && [...sel.options].some(o => o.value == saved)) {
+          sel.value = saved;
+        } else if (defaultId) {
+          sel.value = defaultId;
+        }
+        sel.onchange = () => localStorage.setItem('ai_provider', sel.value);
+        providersLoaded = true;
+      } catch (e) { console.error(e); }
+    }
+
+    /* 控制头像状态：让 SVG 在浮球 + 当前对话 AI 头像同步切换 */
+    function setMascotState(state) {
+      // 浮球
+      const ball = document.querySelector('#ai-bubble .dolphin');
+      if (ball) ball.classList.remove('thinking', 'speaking');
+      if (state && ball) ball.classList.add(state);
+      // 当前正在生成的消息头像
+      const msgs = document.querySelectorAll('#ai-messages .ai-msg.ai');
+      const last = msgs[msgs.length - 1];
+      if (last) {
+        last.classList.remove('thinking', 'speaking');
+        if (state) last.classList.add(state);
+      }
+    }
+
+    async function sendAI() {
+      const ta = document.getElementById('ai-q');
+      const q = ta.value.trim();
+      // 允许仅图片提问（无文字）
+      if (!q && !pendingImage) return;
+      // 用户气泡：先放图、再放文字
+      const userText = q || (pendingImage ? '请帮我看看这张图' : '');
+      const imgUrl = pendingImage ? pendingImage.local_url : null;
+      const imgDesc = pendingImage ? pendingImage.description : null;
+      // 拼实际发给后端的问题（注入图片描述作为上下文）
+      let actualQuestion = userText;
+      if (imgDesc) {
+        actualQuestion = `[用户上传了一张图片，视觉模型的识别结果如下]\n${imgDesc}\n\n[用户的提问]\n${userText || '请基于上图回答'}`;
+      }
+
+      // 渲染用户消息
+      appendUserMsg(userText, imgUrl);
+      aiHistory.push({role:'user', content: actualQuestion});
+      ta.value = '';
+      // 提交后清掉图片预览
+      const usedImage = pendingImage;
+      clearImagePreview();
+      const btn = document.getElementById('ai-send');
+      btn.disabled = true; btn.textContent = '思考中';
+
+      const provider_id = document.getElementById('ai-provider').value || null;
+      const use_web = document.getElementById('ai-web').checked;
+      const use_knowledge = document.getElementById('ai-kb').checked;
+
+      // 创建 AI 占位气泡（带湾湾鲸头像）
+      const aiWrap = document.createElement('div');
+      aiWrap.className = 'ai-msg ai thinking';
+      aiWrap.innerHTML = `
+        <div class="msg-avatar">
+          <svg class="dolphin" viewBox="0 0 80 80" width="28" height="28">
+            <use href="#mascot-template"/>
+          </svg>
+        </div>
+        <div class="ai-bubble-msg"><span class="ai-typing"><span></span><span></span><span></span></span></div>
+      `;
+      // 取头像（重新插入 SVG 保留动画）
+      const avatarBox = aiWrap.querySelector('.msg-avatar');
+      avatarBox.innerHTML = '';
+      avatarBox.appendChild(buildDolphinSVG(28));
+      const bubble = aiWrap.querySelector('.ai-bubble-msg');
+
+      const box = document.getElementById('ai-messages');
+      box.appendChild(aiWrap);
+      box.scrollTop = box.scrollHeight;
+
+      // 浮球进入"思考"
+      setMascotState('thinking');
+
+      let fullText = '';
+      let firstDelta = true;
+      let citations = [];
+      try {
+        const resp = await fetch('/api/ai/stream', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({
+            question: actualQuestion, history: aiHistory.slice(-8),
+            provider_id, use_web, use_knowledge,
+            session_id: currentSessionId,
+          })
+        });
+        if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status);
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buf = '';
+        while (true) {
+          const {value, done} = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, {stream: true});
+          let idx;
+          while ((idx = buf.indexOf('\n\n')) !== -1) {
+            const frame = buf.slice(0, idx);
+            buf = buf.slice(idx + 2);
+            if (!frame.startsWith('data:')) continue;
+            try {
+              const obj = JSON.parse(frame.slice(5).trim());
+              if (obj.type === 'session') {
+                // 后端告知会话 ID（自动创建场景）
+                currentSessionId = obj.session_id;
+                // 异步刷新左侧列表
+                loadSessions();
+              } else if (obj.type === 'citations') {
+                // 引文帧：保存供后续渲染
+                citations = obj.items || [];
+                aiWrap.dataset.citations = JSON.stringify(citations);
+              } else if (obj.type === 'delta' && obj.content) {
+                if (firstDelta) {
+                  bubble.innerHTML = '';
+                  firstDelta = false;
+                  // 切到"说话"
+                  setMascotState('speaking');
+                }
+                fullText += obj.content;
+                bubble.innerHTML = renderMarkdown(fullText, citations);
+                box.scrollTop = box.scrollHeight;
+              } else if (obj.type === 'error') {
+                bubble.innerHTML = '⚠️ ' + escapeHTML(obj.msg || '出错');
+              }
+            } catch(e) {}
+          }
+        }
+        // 流结束后追加引文卡片
+        if (citations.length) {
+          const refsHtml = renderCitationCards(citations);
+          bubble.innerHTML = renderMarkdown(fullText, citations) + refsHtml;
+          box.scrollTop = box.scrollHeight;
+        }
+        if (fullText) aiHistory.push({role:'assistant', content: fullText});
+        // 流结束刷新会话列表（更新最后消息预览）
+        loadSessions();
+      } catch (e) {
+        bubble.innerHTML = '⚠️ 网络异常：' + escapeHTML(e.message || e);
+      } finally {
+        btn.disabled = false; btn.textContent = '发送';
+        setMascotState(null);  // 回到呼吸态
+      }
+    }
+
+    /* 复用湾湾鲸 SVG */
+    function buildDolphinSVG(size) {
+      const ns = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('class', 'dolphin');
+      svg.setAttribute('viewBox', '0 0 80 80');
+      svg.setAttribute('width', size);
+      svg.setAttribute('height', size);
+      svg.innerHTML = `
+        <defs>
+          <radialGradient id="bg2" cx="40%" cy="35%" r="60%">
+            <stop offset="0%" stop-color="#ffd6e1"/>
+            <stop offset="55%" stop-color="#ffaec7"/>
+            <stop offset="100%" stop-color="#ff7daa"/>
+          </radialGradient>
+          <radialGradient id="eg2" cx="35%" cy="30%">
+            <stop offset="0%" stop-color="#ff6b8a"/>
+            <stop offset="55%" stop-color="#a8163d"/>
+            <stop offset="100%" stop-color="#5a0820"/>
+          </radialGradient>
+        </defs>
+        <g class="d-coral">
+          <path d="M40 12 Q34 4 30 6 Q28 10 33 14 Q36 14 40 18 Z" fill="#ff7a3a"/>
+          <ellipse cx="32" cy="8" rx="3.5" ry="2.5" fill="#ff9456"/>
+          <path d="M40 12 Q46 3 50 6 Q52 11 47 15 Q43 14 40 18 Z" fill="#3fd6b8"/>
+          <ellipse cx="48" cy="8" rx="3.5" ry="2.5" fill="#6ee0c7"/>
+        </g>
+        <ellipse cx="40" cy="42" rx="30" ry="26" fill="url(#bg2)"/>
+        <path d="M14 44 Q24 60 40 60 Q56 60 66 44 Q60 56 40 56 Q20 56 14 44 Z" fill="#ffffff" opacity="0.96"/>
+        <ellipse cx="22" cy="48" rx="6" ry="5" fill="#ffffff"/>
+        <ellipse cx="58" cy="48" rx="6" ry="5" fill="#ffffff"/>
+        <g class="d-eyes">
+          <ellipse cx="28" cy="38" rx="6.5" ry="7.5" fill="url(#eg2)"/>
+          <ellipse cx="52" cy="38" rx="6.5" ry="7.5" fill="url(#eg2)"/>
+          <circle cx="30" cy="35" r="1.8" fill="#fff"/>
+          <circle cx="54" cy="35" r="1.8" fill="#fff"/>
+        </g>
+        <ellipse cx="20" cy="48" rx="3" ry="2" fill="#ff6699" opacity=".5"/>
+        <ellipse cx="60" cy="48" rx="3" ry="2" fill="#ff6699" opacity=".5"/>
+        <path class="d-mouth" d="M34 52 Q40 56 46 52" stroke="#c94570" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+        <ellipse cx="30" cy="22" rx="8" ry="4" fill="#fff" opacity="0.35"/>
+      `;
+      return svg;
+    }
+
+    function appendUserMsg(text, imgUrl) {
+      const wrap = document.createElement('div');
+      wrap.className = 'ai-msg user';
+      const bubble = document.createElement('div');
+      bubble.className = 'ai-bubble-msg';
+      let html = '';
+      if (imgUrl) html += `<img src="${imgUrl}" class="user-image" />`;
+      if (text) html += renderMarkdown(text);
+      bubble.innerHTML = html || '(图片提问)';
+      wrap.appendChild(bubble);
+      const box = document.getElementById('ai-messages');
+      box.appendChild(wrap);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function appendAI(role, text, id, isHTML) {
+      const wrap = document.createElement('div');
+      wrap.className = 'ai-msg ' + role;
+      if (id) wrap.id = id;
+      if (role === 'ai') {
+        const av = document.createElement('div');
+        av.className = 'msg-avatar';
+        av.appendChild(buildDolphinSVG(28));
+        wrap.appendChild(av);
+      }
+      const bubble = document.createElement('div');
+      bubble.className = 'ai-bubble-msg';
+      bubble.innerHTML = isHTML ? text : renderMarkdown(text);
+      wrap.appendChild(bubble);
+      const box = document.getElementById('ai-messages');
+      box.appendChild(wrap);
+      box.scrollTop = box.scrollHeight;
+    }
+    function escapeHTML(s) {
+      return String(s ?? '').replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+    }
+    function renderMarkdown(s, citations) {
+      let html = escapeHTML(s)
+        .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+        .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank">$1</a>')
+        .replace(/\n/g, '<br/>');
+      // 把 [1][2] 渲染成可 hover 的角标
+      if (citations && citations.length) {
+        const map = {};
+        citations.forEach(c => { map[c.ref] = c; });
+        html = html.replace(/\[(\d{1,2})\]/g, (m, n) => {
+          const c = map[parseInt(n)];
+          if (!c) return m;
+          return `<sup class="cite-ref" data-cid="${c.chunk_id}" data-ref="${n}">[${n}]</sup>`;
+        });
+      }
+      return html;
+    }
+    function renderCitationCards(citations) {
+      if (!citations || !citations.length) return '';
+      const rows = citations.map(c => `
+        <div class="cite-card" data-cid="${c.chunk_id}" onclick="peekCitation(${c.chunk_id}, this)">
+          <span class="cite-num">[${c.ref}]</span>
+          <span class="cite-icon">${c.doc_type === 'doc' ? '📄' : c.doc_type === 'url' ? '🔗' : c.doc_type === 'note' ? '📝' : c.doc_type === 'image' ? '🖼️' : '📚'}</span>
+          <span class="cite-info">
+            <span class="cite-title">${escapeHTML(c.doc_title || '资料')}${c.page_no ? ' · 第 ' + c.page_no + ' 页' : ''}</span>
+            <span class="cite-snippet">${escapeHTML((c.snippet || '').slice(0, 80))}…</span>
+          </span>
+        </div>
+      `).join('');
+      return `
+        <div class="cite-block">
+          <div class="cite-header">📖 参考资料 <span class="cite-tip">点击查看脱敏摘要 · 完整原文仅后台可查</span></div>
+          ${rows}
+        </div>`;
+    }
+    /* 前台 peek：仅返回标题/类型/120 字摘要；不暴露原文 / 不能跳转 */
+    async function peekCitation(chunkId, anchor) {
+      try {
+        const r = await fetch(`/api/kb/peek/${chunkId}`);
+        const j = await r.json();
+        if (!j.ok) { showCitePopover(anchor, '⚠️ ' + (j.msg || '资料不存在')); return; }
+        const html = `
+          <div style="font-weight:600;color:#cfe6ff;margin-bottom:6px;">${j.icon} ${escapeHTML(j.title)}</div>
+          <div style="color:var(--cyan,#5cd9f0);font-size:11px;margin-bottom:8px;">类型：${escapeHTML(j.type)}${j.page_no ? ' · 第 ' + j.page_no + ' 页' : ''}</div>
+          <div style="color:#dde9ff;line-height:1.7;font-size:12.5px;">${escapeHTML(j.snippet || '')}</div>
+          <div style="margin-top:10px;color:#7a93c4;font-size:11px;border-top:1px dashed rgba(78,161,255,0.18);padding-top:8px;">
+            🔒 ${escapeHTML(j.tip || '完整原文仅后台可查')}
+          </div>`;
+        showCitePopover(anchor, html);
+      } catch (e) {
+        showCitePopover(anchor, '⚠️ 加载失败');
+      }
+    }
+    function showCitePopover(anchor, html) {
+      // 复用单一 popover；点空白处关闭
+      let pop = document.getElementById('cite-popover');
+      if (!pop) {
+        pop = document.createElement('div');
+        pop.id = 'cite-popover';
+        pop.className = 'cite-popover';
+        document.body.appendChild(pop);
+        document.addEventListener('click', e => {
+          if (e.target.closest('#cite-popover') || e.target.closest('.cite-card') || e.target.closest('.cite-ref')) return;
+          pop.style.display = 'none';
+        });
+      }
+      pop.innerHTML = html;
+      const rect = anchor.getBoundingClientRect();
+      pop.style.display = 'block';
+      // 算位置：尽量在锚点正下方
+      const popW = 280;
+      let left = rect.left + rect.width / 2 - popW / 2;
+      left = Math.max(8, Math.min(left, window.innerWidth - popW - 8));
+      let top = rect.bottom + 8;
+      // 太靠下则放到锚点上方
+      if (top + 200 > window.innerHeight) {
+        top = rect.top - 8;
+        pop.style.transform = 'translateY(-100%)';
+      } else {
+        pop.style.transform = '';
+      }
+      pop.style.left = left + 'px';
+      pop.style.top = top + 'px';
+    }
+    /* 让 [N] 角标也可点击查看 */
+    document.addEventListener('click', e => {
+      const ref = e.target.closest('.cite-ref');
+      if (ref) {
+        e.stopPropagation();
+        peekCitation(ref.dataset.cid, ref);
+      }
+    });
+
+    document.addEventListener('keydown', e => {
+      if (e.target && e.target.id === 'ai-q' && e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault(); sendAI();
+      }
+    });
+  </script>
+  {% endif %}
+</body>
+</html>

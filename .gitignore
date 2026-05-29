@@ -1,0 +1,62 @@
+# =============================
+#  Python
+# =============================
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.Python
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+.pytest_cache/
+
+# =============================
+#  Editor / OS
+# =============================
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+*.suo
+
+# =============================
+#  Project: 数据/上传/秘钥/日志
+# =============================
+web/data/
+!web/data/.gitkeep
+web/uploads/
+!web/uploads/.gitkeep
+web/.env
+.env
+*.log
+web/*.db
+web/*.sqlite
+web/data/*.db
+web/data/server*.log
+web/data/server*.err.log
+web/data/test_*.jpg
+
+# =============================
+#  Excel 原始数据（含个人信息，不上传）
+# =============================
+*.xlsx
+*.xls
+
+# =============================
+#  CodeBuddy 工作区元数据
+# =============================
+.codebuddy/
+
+# =============================
+#  Node / Front-end build artifacts (预留)
+# =============================
+node_modules/
+*.local

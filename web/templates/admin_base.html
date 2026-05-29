@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}后台管理{% endblock %}</title>
+  <script>
+    (function(){
+      try {
+        var t = localStorage.getItem('yz_theme');
+        if (!t) {
+          t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+        }
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch(e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
+  {% block head %}{% endblock %}
+</head>
+<body>
+{% if current_user.is_authenticated %}
+<aside class="sidebar">
+  <div class="brand">
+    <span class="dot"></span>
+    青年驿站后台
+  </div>
+  <nav>
+    <a href="/admin" class="{% if request.endpoint=='admin_dashboard' %}active{% endif %}">📊 数据看板</a>
+    <a href="/admin/stations" class="{% if request.endpoint and 'station' in request.endpoint %}active{% endif %}">🏠 驿站管理</a>
+    <a href="/admin/codes" class="{% if request.endpoint and 'codes' in request.endpoint %}active{% endif %}">🎫 驿站码管理</a>
+    <a href="/admin/policies" class="{% if request.endpoint and 'policies' in request.endpoint %}active{% endif %}">📋 政策入口</a>
+    <a href="/admin/knowledge" class="{% if request.endpoint and 'knowledge' in request.endpoint %}active{% endif %}">💬 FAQ 问答</a>
+    <a href="/admin/kb" class="{% if request.endpoint and 'admin_kb' in request.endpoint %}active{% endif %}">📚 知识库</a>
+    <a href="/admin/ai" class="{% if request.endpoint and 'admin_ai' in request.endpoint %}active{% endif %}">🤖 AI 模型</a>
+  </nav>
+  <div class="bottom">
+    <span>{{ current_user.username }}</span>
+    <a href="/admin/logout">退出</a>
+  </div>
+</aside>
+<main class="main">
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <div class="flash">{% for m in messages %}<div>{{ m }}</div>{% endfor %}</div>
+    {% endif %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+{% else %}
+  {% block raw %}{% endblock %}
+{% endif %}
+
+{# 主题切换按钮（全局） #}
+<button class="theme-toggle" type="button" onclick="toggleTheme()" title="切换 白天/夜间 主题">
+  <span class="ic-sun">☀</span><span class="ic-moon">🌙</span>
+</button>
+<script>
+  function toggleTheme() {
+    var cur = document.documentElement.getAttribute('data-theme');
+    var next = cur === 'light' ? 'dark' : 'light';
+    if (next === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    else document.documentElement.removeAttribute('data-theme');
+    try { localStorage.setItem('yz_theme', next); } catch(e) {}
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+{% extends "admin_base.html" %}
+{% block title %}政策入口管理{% endblock %}
+{% block content %}
+<h1 class="page-title">政策入口管理</h1>
+
+<div class="card">
+  <h3>新增 / 编辑政策入口</h3>
+  <form method="post" action="{{ url_for('admin_policies_save') }}">
+    <input type="hidden" name="id" id="f_id" />
+    <div class="grid-2" style="margin-bottom:12px;">
+      <div class="field">
+        <label>城市 *</label>
+        <input name="city" id="f_city" placeholder="如：广州市" required />
+      </div>
+      <div class="field">
+        <label>分类</label>
+        <input name="category" id="f_category" placeholder="人才认定 / 生活补贴 / 租房补贴 / 落户" />
+      </div>
+    </div>
+    <div class="grid-2" style="margin-bottom:12px;">
+      <div class="field">
+        <label>标题 *</label>
+        <input name="title" id="f_title" required />
+      </div>
+      <div class="field">
+        <label>图标 (emoji)</label>
+        <input name="icon" id="f_icon" placeholder="🏅 💰 🏠 🆔" maxlength="4" />
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:12px;">
+      <label>描述（可空）</label>
+      <input name="description" id="f_description" />
+    </div>
+    <div class="grid-2" style="margin-bottom:12px;">
+      <div class="field">
+        <label>跳转链接 *</label>
+        <input name="url" id="f_url" placeholder="https://..." required />
+      </div>
+      <div class="field">
+        <label>排序（越小越前）</label>
+        <input name="sort" id="f_sort" type="number" value="0" />
+      </div>
+    </div>
+    <div class="field">
+      <label><input type="checkbox" name="enabled" id="f_enabled" value="1" checked /> 启用</label>
+    </div>
+    <div class="actions">
+      <button type="submit" class="btn">保存</button>
+      <button type="button" class="btn ghost" onclick="resetForm()">清空</button>
+    </div>
+  </form>
+</div>
+
+<table class="grid">
+  <thead>
+    <tr>
+      <th style="width:50px;">图标</th>
+      <th>城市</th>
+      <th>分类</th>
+      <th>标题</th>
+      <th>链接</th>
+      <th>排序</th>
+      <th>状态</th>
+      <th style="width:120px;">操作</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in policies %}
+    <tr>
+      <td style="font-size:20px;">{{ p.icon or '📋' }}</td>
+      <td>{{ p.city }}</td>
+      <td>{{ p.category or '' }}</td>
+      <td>{{ p.title }}</td>
+      <td class="ellipsis" title="{{ p.url }}"><a href="{{ p.url }}" target="_blank">{{ p.url[:40] }}…</a></td>
+      <td>{{ p.sort }}</td>
+      <td>{% if p.enabled %}<span class="ok">启用</span>{% else %}<span class="warn">停用</span>{% endif %}</td>
+      <td>
+        <a href="javascript:;" onclick='editRow({{ {"id":p.id,"city":p.city,"category":p.category,"title":p.title,"description":p.description,"url":p.url,"icon":p.icon,"sort":p.sort,"enabled":p.enabled}|tojson }})'>编辑</a>
+        <a href="javascript:;" onclick="toggleRow({{ p.id }})">{% if p.enabled %}停用{% else %}启用{% endif %}</a>
+        <a href="javascript:;" onclick="delRow({{ p.id }})">删除</a>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" style="text-align:center;color:#8aa8d6;padding:40px;">暂无政策，请新增</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<script>
+function editRow(p) {
+  document.getElementById('f_id').value = p.id;
+  document.getElementById('f_city').value = p.city || '';
+  document.getElementById('f_category').value = p.category || '';
+  document.getElementById('f_title').value = p.title || '';
+  document.getElementById('f_description').value = p.description || '';
+  document.getElementById('f_url').value = p.url || '';
+  document.getElementById('f_icon').value = p.icon || '';
+  document.getElementById('f_sort').value = p.sort || 0;
+  document.getElementById('f_enabled').checked = !!p.enabled;
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+function resetForm() {
+  document.querySelector('form').reset();
+  document.getElementById('f_id').value = '';
+}
+async function delRow(id) {
+  if (!confirm('确定删除此政策入口？')) return;
+  await fetch(`/admin/policies/delete/${id}`, {method:'POST'});
+  location.reload();
+}
+async function toggleRow(id) {
+  await fetch(`/admin/policies/toggle/${id}`, {method:'POST'});
+  location.reload();
+}
+</script>
+{% endblock %}

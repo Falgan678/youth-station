@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}全国青年驿站地图 · 查询{% endblock %}
+{% block head %}
+<script>
+  window._AMapSecurityConfig = { securityJsCode: "{{ amap_js_secret }}" };
+</script>
+<script src="https://webapi.amap.com/maps?v=1.4.15&key={{ amap_js_key }}&plugin=AMap.MarkerClusterer,AMap.ToolBar"></script>
+{% endblock %}
+{% block body %}
+<header class="topbar">
+  <div class="logo-mini">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 12L12 3l9 9"/><path d="M5 10v10h14V10"/>
+    </svg>
+    全国青年人才驿站
+  </div>
+  <div class="search-bar">
+    <select id="sel-city"><option value="">全部城市</option></select>
+    <select id="sel-district"><option value="">全部区域</option></select>
+    <input id="kw" placeholder="搜索驿站名称/地址" />
+    <button id="btn-search">查询</button>
+    <button id="btn-reset" class="ghost">重置</button>
+  </div>
+  <a class="logout" href="/policy" style="margin-right:14px;">📋 政策速查</a>
+  <a class="logout" href="/logout">退出</a>
+</header>
+
+<main class="layout">
+  <aside class="side-list">
+    <div class="list-header">
+      <span id="list-count">0</span> 个驿站
+      <button id="btn-fit" class="mini-btn">全览</button>
+    </div>
+    <ul id="station-list"></ul>
+  </aside>
+
+  <section class="map-area">
+    <div id="map"></div>
+  </section>
+</main>
+
+<script src="{{ url_for('static', filename='js/portal_index.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends "admin_base.html" %}
+{% block title %}驿站管理{% endblock %}
+{% block content %}
+<h1 class="page-title">驿站管理</h1>
+
+<div class="toolbar">
+  <form method="get" class="filter">
+    <select name="city">
+      <option value="">全部城市</option>
+      {% for c in cities %}
+        <option value="{{ c }}" {% if c==q_city %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+    <input name="kw" value="{{ q_kw }}" placeholder="搜索名称/地址" />
+    <button type="submit">筛选</button>
+  </form>
+
+  <div class="actions">
+    <a class="btn" href="{{ url_for('admin_station_edit') }}">+ 新增驿站</a>
+    <a class="btn ghost" href="{{ url_for('admin_template') }}">📄 下载导入模板</a>
+    <button class="btn" onclick="document.getElementById('imp').click()">📥 批量导入</button>
+    <input id="imp" type="file" accept=".xlsx,.xls" style="display:none" onchange="doImport(this)" />
+    <a class="btn" href="{{ url_for('admin_station_export', city=q_city) }}">📤 导出 Excel{% if q_city %}（{{ q_city }}）{% endif %}</a>
+    <button class="btn danger" onclick="batchDelete()">🗑 批量删除</button>
+  </div>
+</div>
+
+<table class="grid">
+  <thead>
+    <tr>
+      <th style="width:38px;"><input type="checkbox" id="chk-all" /></th>
+      <th>驿站名称</th>
+      <th>城市</th>
+      <th>区域</th>
+      <th>地址</th>
+      <th>经纬度</th>
+      <th style="width:140px;">操作</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in stations %}
+    <tr>
+      <td><input type="checkbox" class="chk-row" value="{{ s.id }}" /></td>
+      <td>{{ s.name }}</td>
+      <td>{{ s.city or '' }}</td>
+      <td>{{ s.district or '' }}</td>
+      <td class="ellipsis" title="{{ s.address }}">{{ s.address }}</td>
+      <td>{% if s.lng %}<span class="ok">已定位</span>{% else %}<span class="warn">未定位</span>{% endif %}</td>
+      <td>
+        <a href="{{ url_for('admin_station_edit', sid=s.id) }}">编辑</a>
+        <a href="javascript:;" onclick="delOne({{ s.id }})">删除</a>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" style="text-align:center;color:#8aa8d6;padding:40px;">暂无数据，请新增或批量导入</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<script>
+document.getElementById('chk-all').onchange = function(){
+  document.querySelectorAll('.chk-row').forEach(c => c.checked = this.checked);
+};
+function selectedIds() {
+  return [...document.querySelectorAll('.chk-row:checked')].map(c => parseInt(c.value));
+}
+async function delOne(id) {
+  if (!confirm('确定删除此驿站？')) return;
+  const r = await fetch(`/admin/station/delete/${id}`, {method:'POST'});
+  const j = await r.json();
+  if (j.ok) location.reload();
+}
+async function batchDelete() {
+  const ids = selectedIds();
+  if (!ids.length) { alert('请先勾选'); return; }
+  if (!confirm(`确定删除 ${ids.length} 条驿站？`)) return;
+  const r = await fetch('/admin/station/batch_delete', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ids})
+  });
+  const j = await r.json();
+  if (j.ok) location.reload();
+}
+async function doImport(inp) {
+  const f = inp.files[0];
+  if (!f) return;
+  const fd = new FormData();
+  fd.append('file', f);
+  fd.append('geocode', '1');
+  const r = await fetch('/admin/station/import', { method:'POST', body: fd });
+  const j = await r.json();
+  if (j.ok) { alert(`导入完成：新增 ${j.added}，更新 ${j.updated}，共解析 ${j.total} 条`); location.reload(); }
+  else alert('导入失败：' + j.msg);
+  inp.value = '';
+}
+</script>
+{% endblock %}

@@ -9,6 +9,23 @@
   所有模型已封装为 <b>OpenAI 兼容协议</b>，前端浮窗可一键切换。点击下方<b>预设卡片</b>自动填充配置，再粘贴 API Key 即可保存使用。
 </p>
 
+<a href="{{ url_for('admin_ai_persona') }}"
+   style="display:flex;align-items:center;gap:14px;padding:14px 18px;margin-bottom:18px;
+          background:linear-gradient(135deg,rgba(255,140,180,0.12),rgba(78,161,255,0.10));
+          border:1px solid rgba(255,140,180,0.35);border-radius:12px;text-decoration:none;
+          color:inherit;transition:all .15s;"
+   onmouseover="this.style.transform='translateX(3px)';this.style.boxShadow='0 4px 14px rgba(255,140,180,0.20)';"
+   onmouseout="this.style.transform='';this.style.boxShadow='';">
+  <span style="font-size:32px;">🐬</span>
+  <div style="flex:1;">
+    <div style="font-weight:700;font-size:15px;color:var(--text);">湾湾鲸 角色设定</div>
+    <div style="font-size:12.5px;color:var(--text-dim);margin-top:3px;">
+      配置助手的人设（system prompt）、开场白、示例问题，以及追问/反问策略
+    </div>
+  </div>
+  <span style="color:var(--cyan);font-size:18px;">→</span>
+</a>
+
 <div class="card">
   <h3>
     <span style="color:var(--cyan);">✦</span> 新增 / 编辑 AI 服务

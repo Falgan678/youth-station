@@ -36,6 +36,12 @@
 
   <section class="map-area">
     <div id="map"></div>
+
+    <!-- 驿站详情浮动卡（点 marker 或 列表项后显示） -->
+    <div id="station-detail-card" class="detail-card" style="display:none;">
+      <button class="dc-close" onclick="closeDetailCard()" title="关闭">×</button>
+      <div class="dc-body" id="dc-body"></div>
+    </div>
   </section>
 </main>
 

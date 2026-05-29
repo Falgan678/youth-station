@@ -96,12 +96,12 @@
   </svg>
   {% endmacro %}
 
-  <div id="ai-bubble" onclick="toggleAI()" title="湾湾鲸 · AI 驿站助手">
-    <div class="chick-wrap">
+  <div id="ai-bubble" title="湾湾鲸 · AI 驿站助手" role="button" tabindex="0">
+    <div class="chick-wrap" style="pointer-events:none;">
       {{ dolphin(50, 'dolphin breath') }}
       <span class="hi-pop">Hi~</span>
     </div>
-    <div class="bubble-text">
+    <div class="bubble-text" style="pointer-events:none;">
       <span class="bt-name">湾湾鲸</span>
       <span class="bt-sub">AI 驿站助手</span>
     </div>
@@ -147,17 +147,7 @@
     </div>
 
     <div id="ai-messages" class="ai-messages">
-      <div class="ai-msg ai">
-        <div class="msg-avatar">{{ dolphin(28, 'dolphin avatar') }}</div>
-        <div class="ai-bubble-msg">
-          🐬 <b>湾湾鲸</b>来啦！我是粤港澳大湾区的小海豚，专门帮应届毕业生找驿站、查政策~<br/><br/>
-          可以问我：<br/>
-          • <span class="quick" onclick="quickAsk(this)">我是 2026 届，深圳哪些驿站适合我？</span><br/>
-          • <span class="quick" onclick="quickAsk(this)">广州人才补贴怎么申请？</span><br/>
-          • <span class="quick" onclick="quickAsk(this)">东莞松山湖驿站联系方式？</span><br/>
-          • <span class="quick" onclick="quickAsk(this)">驿站码丢了怎么办？</span>
-        </div>
-      </div>
+      {# 开场白由 JS 在打开浮窗时根据 /api/ai/persona 动态渲染 #}
     </div>
     <div class="ai-input">
       <div id="ai-image-preview" class="ai-image-preview" style="display:none;"></div>
@@ -393,7 +383,12 @@
       from { opacity: 0; transform: translateY(20px) scale(.95); }
       to   { opacity: 1; transform: translateY(0) scale(1); }
     }
-    #ai-panel.open { display: flex; }
+    #ai-panel.open {
+      display: flex !important;
+      opacity: 1 !important;
+      visibility: visible !important;
+      pointer-events: auto !important;
+    }
     #ai-panel.maximized {
       right: 22px !important; bottom: 22px !important;
       left: auto !important; top: auto !important;
@@ -480,6 +475,52 @@
     }
     .ai-bubble-msg a { color: #5cd9f0; text-decoration: underline; }
     .ai-bubble-msg b { color: #5cd9f0; }
+
+    /* ===== 消息操作栏（豆包风：复制/重新编辑/重新生成/朗读） ===== */
+    .msg-actions {
+      display: flex; gap: 2px; margin-top: 6px;
+      opacity: 0; transition: opacity .15s;
+    }
+    .ai-msg:hover .msg-actions,
+    .msg-actions.show { opacity: 1; }
+    .ai-msg.user .msg-actions { justify-content: flex-end; }
+    .msg-actions .act-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 26px; height: 26px; border-radius: 6px;
+      cursor: pointer; color: #8aa8d6;
+      background: transparent; border: 1px solid transparent;
+      font-size: 13px; line-height: 1; user-select: none;
+      transition: all .15s;
+    }
+    .msg-actions .act-btn:hover {
+      background: rgba(78,161,255,0.16);
+      color: #cfe6ff; border-color: rgba(78,161,255,0.30);
+    }
+    .msg-actions .act-btn.copied {
+      color: #5cd9f0; background: rgba(0,225,255,0.14);
+      border-color: rgba(0,225,255,0.32);
+    }
+    .msg-actions .act-btn.speaking {
+      color: #ff6b9b; background: rgba(255,107,154,0.14);
+      border-color: rgba(255,107,154,0.32);
+      animation: speakPulse 1.2s ease-in-out infinite;
+    }
+    @keyframes speakPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,107,154,0.45); }
+      50%      { box-shadow: 0 0 0 4px rgba(255,107,154,0); }
+    }
+    /* 发送按钮变成"停止生成"状态 */
+    .ai-input button#ai-send.streaming {
+      background: linear-gradient(135deg, #ff6b9b, #ff4f7a);
+      box-shadow: 0 4px 14px rgba(255,107,154,0.45);
+    }
+    .ai-input button#ai-send.streaming:hover { filter: brightness(1.05); }
+
+    /* light 主题 */
+    :root[data-theme="light"] .msg-actions .act-btn { color: #64748b; }
+    :root[data-theme="light"] .msg-actions .act-btn:hover {
+      background: #dbeafe; color: #1e40af; border-color: rgba(37,99,235,0.30);
+    }
 
     .quick {
       display: inline-block; padding: 3px 11px; margin: 3px 0;
@@ -774,25 +815,328 @@
   </style>
 
   <script>
+    /* ============ 全局错误捕获：把 JS 报错打印到控制台，便于排查 ============ */
+    (function(){
+      window.addEventListener('error', function(ev){
+        const src = (ev.filename || '').split('/').pop();
+        const where = src ? (src + ':' + ev.lineno + ':' + ev.colno) : ('行 ' + ev.lineno);
+        console.error('[湾湾鲸·全局错误]', where, ev.message, ev.error || '');
+      });
+      window.addEventListener('unhandledrejection', function(ev){
+        console.error('[湾湾鲸·Promise 异常]', ev.reason);
+      });
+    })();
+
     const aiHistory = [];
     let currentSessionId = null;
-
-    function toggleAI() {
-      const panel = document.getElementById('ai-panel');
-      panel.classList.toggle('open');
-      if (panel.classList.contains('open')) {
-        loadProviders();
-        loadSessions();
-        // 恢复上次记忆的位置/尺寸
-        restorePanelGeometry();
+    /* 湾湾鲸的开场白 + 示例问题（来自 /api/ai/persona，可在后台编辑） */
+    let aiPersona = {
+      name: '湾湾鲸',
+      emoji: '🐬',
+      tagline: 'AI 驿站助手',
+      greeting: '🐬 <b>湾湾鲸</b>来啦！我是粤港澳大湾区的小海豚，专门帮应届毕业生找驿站、查政策~',
+      quick_asks: [
+        '我是 2026 届，深圳哪些驿站适合我？',
+        '广州人才补贴怎么申请？',
+        '东莞松山湖驿站联系方式？',
+        '驿站码丢了怎么办？',
+      ],
+    };
+    let personaLoaded = false;
+    /** 安全 JSON 解析：遇到 HTML（未登录跳登录页等情况）静默返回 null，避免 SyntaxError 炸控制台 */
+    async function safeJson(resp) {
+      try {
+        const ct = (resp.headers.get('content-type') || '').toLowerCase();
+        if (!ct.includes('json')) return null;
+        return await resp.json();
+      } catch(e) { return null; }
+    }
+    async function loadPersona(force) {
+      if (personaLoaded && !force) return;
+      try {
+        const r = await fetch('/api/ai/persona');
+        if (r.status === 401) {
+          // 登录态丢失：跳回登录页
+          location.href = '/'; return;
+        }
+        const j = await safeJson(r);
+        if (j && j.ok && j.data) {
+          aiPersona = Object.assign(aiPersona, j.data);
+        }
+      } catch(e) { console.warn('[湾湾鲸] loadPersona failed:', e); }
+      personaLoaded = true;
+      // 当前会话还没有用户消息时，重渲染欢迎语
+      if (aiHistory.length === 0) {
+        try { renderEmptyChat(); } catch(e) {}
       }
     }
+
+    /* ============ 消息操作栏：复制 / 重编 / 重发 / 朗读 / 停止 ============ */
+    /* 全局：当前正在进行的 SSE 请求控制器；点"停止生成"时 abort */
+    let currentStreamCtrl = null;
+    /* 全局：当前朗读队列状态（同一时间只允许一个朗读） */
+    let currentSpeakBtn = null;
+
+    /** 把消息原始文本存到 wrap.dataset.raw，工具栏据此操作 */
+    function attachUserActions(wrap, rawText) {
+      wrap.dataset.raw = rawText || '';
+      const bar = document.createElement('div');
+      bar.className = 'msg-actions';
+      bar.innerHTML = `
+        <span class="act-btn" title="复制" data-act="copy">📋</span>
+        <span class="act-btn" title="重新编辑这条消息" data-act="edit">✏️</span>
+      `;
+      bar.addEventListener('click', e => {
+        const btn = e.target.closest('.act-btn');
+        if (!btn) return;
+        if (btn.dataset.act === 'copy') return copyMsg(btn, wrap.dataset.raw);
+        if (btn.dataset.act === 'edit') return editUserMsg(wrap);
+      });
+      wrap.appendChild(bar);
+    }
+
+    function attachAIActions(wrap, rawText) {
+      wrap.dataset.raw = rawText || '';
+      // 已有就先移除（重新生成时复用）
+      const old = wrap.querySelector(':scope > .msg-actions');
+      if (old) old.remove();
+      const bar = document.createElement('div');
+      bar.className = 'msg-actions';
+      bar.innerHTML = `
+        <span class="act-btn" title="复制" data-act="copy">📋</span>
+        <span class="act-btn" title="朗读" data-act="speak">🔊</span>
+        <span class="act-btn" title="重新生成" data-act="regen">🔄</span>
+      `;
+      bar.addEventListener('click', e => {
+        const btn = e.target.closest('.act-btn');
+        if (!btn) return;
+        if (btn.dataset.act === 'copy')  return copyMsg(btn, wrap.dataset.raw);
+        if (btn.dataset.act === 'speak') return toggleSpeak(btn, wrap.dataset.raw);
+        if (btn.dataset.act === 'regen') return regenAIMsg(wrap);
+      });
+      wrap.appendChild(bar);
+    }
+
+    /** 复制到剪贴板 */
+    async function copyMsg(btn, text) {
+      const t = (text || '').toString();
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(t);
+        } else {
+          // 兼容 http 环境
+          const ta = document.createElement('textarea');
+          ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select();
+          document.execCommand('copy'); document.body.removeChild(ta);
+        }
+        btn.classList.add('copied');
+        const orig = btn.textContent; btn.textContent = '✓';
+        setTimeout(() => { btn.classList.remove('copied'); btn.textContent = orig; }, 1200);
+      } catch (e) {
+        alert('复制失败：' + e);
+      }
+    }
+
+    /** 把用户消息回填到输入框，删掉它和后续 AI 回答，等用户编辑后再发送 */
+    function editUserMsg(wrap) {
+      const ta = document.getElementById('ai-q');
+      if (!ta) return;
+      ta.value = wrap.dataset.raw || '';
+      ta.focus();
+      // 把同步 history 中也截掉（找到对应 user 项及其后所有项）
+      const allMsgs = [...document.querySelectorAll('#ai-messages .ai-msg')];
+      const idx = allMsgs.indexOf(wrap);
+      if (idx >= 0) {
+        // 计算这是 history 里的第几条 user
+        let userCnt = 0;
+        for (let i = 0; i <= idx; i++) {
+          if (allMsgs[i].classList.contains('user')) userCnt++;
+        }
+        // 删 history 中第 userCnt 个 user 之后（含）所有项
+        let seen = 0;
+        for (let i = 0; i < aiHistory.length; i++) {
+          if (aiHistory[i].role === 'user') {
+            seen++;
+            if (seen === userCnt) { aiHistory.length = i; break; }
+          }
+        }
+      }
+      // 删 DOM 中本条及之后所有
+      for (let i = allMsgs.length - 1; i >= idx; i--) {
+        allMsgs[i].remove();
+      }
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    }
+
+    /** 重新生成：删掉这条 AI 回答，用对应的 user 消息再问一次 */
+    function regenAIMsg(wrap) {
+      const allMsgs = [...document.querySelectorAll('#ai-messages .ai-msg')];
+      const idx = allMsgs.indexOf(wrap);
+      if (idx <= 0) return;
+      // 往上找对应的 user 消息
+      let userIdx = -1;
+      for (let i = idx - 1; i >= 0; i--) {
+        if (allMsgs[i].classList.contains('user')) { userIdx = i; break; }
+      }
+      if (userIdx < 0) return;
+      const userText = allMsgs[userIdx].dataset.raw || '';
+      if (!userText) return;
+      // 删 AI 这条
+      wrap.remove();
+      // 同步 history：去掉最后一条 assistant
+      for (let i = aiHistory.length - 1; i >= 0; i--) {
+        if (aiHistory[i].role === 'assistant') { aiHistory.splice(i, 1); break; }
+      }
+      // 把 user 文本放回输入框，调用 sendAI 重新发
+      const ta = document.getElementById('ai-q');
+      ta.value = userText;
+      // 同步从 history 也去掉那条 user（sendAI 内部会再 push 一次）
+      for (let i = aiHistory.length - 1; i >= 0; i--) {
+        if (aiHistory[i].role === 'user') { aiHistory.splice(i, 1); break; }
+      }
+      // 同时移除原 user DOM（sendAI 会再加一条），保持同步
+      allMsgs[userIdx].remove();
+      sendAI();
+    }
+
+    /** 朗读 / 停止朗读（浏览器原生 SpeechSynthesis） */
+    function toggleSpeak(btn, text) {
+      if (!('speechSynthesis' in window)) {
+        alert('当前浏览器不支持语音朗读');
+        return;
+      }
+      // 已经在读 → 停止
+      if (currentSpeakBtn === btn) {
+        window.speechSynthesis.cancel();
+        btn.classList.remove('speaking');
+        btn.textContent = '🔊';
+        currentSpeakBtn = null;
+        return;
+      }
+      // 切换：先停掉之前的
+      window.speechSynthesis.cancel();
+      if (currentSpeakBtn) {
+        currentSpeakBtn.classList.remove('speaking');
+        currentSpeakBtn.textContent = '🔊';
+      }
+      // 去掉 HTML、引文角标、Markdown 标记，只读纯文本
+      let plain = (text || '').toString()
+        .replace(/<[^>]+>/g, '')
+        .replace(/\[\d{1,2}\]/g, '')
+        .replace(/\*\*(.+?)\*\*/g, '$1')
+        .replace(/\s+\n/g, '\n')
+        .trim();
+      if (!plain) return;
+      const u = new SpeechSynthesisUtterance(plain);
+      u.lang = /[\u4e00-\u9fa5]/.test(plain) ? 'zh-CN' : 'en-US';
+      u.rate = 1.0; u.pitch = 1.05; u.volume = 1.0;
+      u.onend = () => {
+        btn.classList.remove('speaking');
+        btn.textContent = '🔊';
+        if (currentSpeakBtn === btn) currentSpeakBtn = null;
+      };
+      u.onerror = u.onend;
+      btn.classList.add('speaking');
+      btn.textContent = '⏹';
+      currentSpeakBtn = btn;
+      window.speechSynthesis.speak(u);
+    }
+
+    function openAIPanel() {
+      const panel = document.getElementById('ai-panel');
+      if (!panel) { console.warn('[湾湾鲸] ai-panel 不存在'); return; }
+      // 清掉历史 inline 样式，防止之前被拖动/隐藏写入的 left/top/display 等卡死
+      panel.style.cssText = '';
+      panel.classList.remove('maximized', 'fullscreen');
+      panel.classList.add('open');
+      try { localStorage.removeItem('ai_panel_geo'); } catch(e) {}
+      // 三个加载函数都包 try/catch，任何一个出问题都不影响"开窗"本身
+      try { loadPersona();   } catch(e) { console.error('[湾湾鲸] loadPersona err', e); }
+      try { loadProviders(); } catch(e) { console.error('[湾湾鲸] loadProviders err', e); }
+      try { loadSessions();  } catch(e) { console.error('[湾湾鲸] loadSessions err', e); }
+      // 多次检查：100ms / 300ms / 600ms 都查一次面板位置，被丢到屏幕外则强制重置
+      [100, 300, 600].forEach(ms => setTimeout(() => {
+        if (!panel.classList.contains('open')) return;
+        const rect = panel.getBoundingClientRect();
+        const visible = rect.width > 50 && rect.height > 50 &&
+                        rect.right > 30 && rect.bottom > 30 &&
+                        rect.left < window.innerWidth - 30 &&
+                        rect.top < window.innerHeight - 30;
+        if (!visible) {
+          console.warn('[湾湾鲸] 面板不可见，强制重置位置', rect);
+          panel.style.cssText = '';
+          panel.classList.remove('maximized', 'fullscreen');
+        }
+      }, ms));
+    }
+    function closeAIPanel() {
+      const panel = document.getElementById('ai-panel');
+      if (panel) panel.classList.remove('open');
+    }
+    function toggleAI(ev) {
+      // 阻止冒泡，避免被外层 document click 监听误关
+      if (ev && ev.stopPropagation) ev.stopPropagation();
+      console.log('[湾湾鲸] toggleAI 被触发');
+      const panel = document.getElementById('ai-panel');
+      if (!panel) { console.warn('ai-panel not found'); return; }
+      if (panel.classList.contains('open')) {
+        closeAIPanel();
+      } else {
+        openAIPanel();
+      }
+      console.log('[湾湾鲸] 当前 open=', panel.classList.contains('open'));
+    }
+    /* 显式挂到 window 以确保 onclick 能调用（防止某些打包/严格模式下作用域问题） */
+    window.toggleAI = toggleAI;
+    window.openAIPanel = openAIPanel;
+    window.closeAIPanel = closeAIPanel;
+
+    /* 立即绑定（不等 DOMContentLoaded）：因为本 <script> 写在 body 末尾，
+       此时 #ai-bubble 已经渲染。这样能避免 onclick 属性在某些 CSP/作用域下失效。 */
+    (function bindAIBubble() {
+      try {
+        const bubble = document.getElementById('ai-bubble');
+        if (!bubble) {
+          // 极端情况下脚本插入过早，再兜底一次
+          document.addEventListener('DOMContentLoaded', bindAIBubble, { once: true });
+          return;
+        }
+        if (bubble.dataset.bound === '1') return;
+        bubble.dataset.bound = '1';
+        bubble.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          console.log('[湾湾鲸] bubble click');
+          try { toggleAI(ev); } catch (e) {
+            console.error('[湾湾鲸] toggleAI 调用失败', e);
+            // 终极兜底：直接强行加 open 类
+            const p = document.getElementById('ai-panel');
+            if (p) { p.style.cssText = ''; p.classList.add('open'); }
+          }
+        });
+        // 键盘可达性：Enter / Space 也能打开
+        bubble.addEventListener('keydown', function (ev) {
+          if (ev.key === 'Enter' || ev.key === ' ') {
+            ev.preventDefault();
+            toggleAI(ev);
+          }
+        });
+        console.log('[湾湾鲸] 浮球 click listener 已绑定');
+      } catch (e) {
+        console.error('[湾湾鲸] bindAIBubble 异常', e);
+      }
+    })();
     function quickAsk(el) {
       document.getElementById('ai-q').value = el.textContent.trim();
       sendAI();
     }
     async function clearAI() {
       if (!confirm('清空当前对话的所有消息？')) return;
+      // 停止可能正在进行的朗读和生成
+      try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch(e) {}
+      if (currentSpeakBtn) { currentSpeakBtn.classList.remove('speaking'); currentSpeakBtn.textContent='🔊'; currentSpeakBtn = null; }
+      if (currentStreamCtrl) { try { currentStreamCtrl.abort(); } catch(e) {} }
       aiHistory.length = 0;
       const box = document.getElementById('ai-messages');
       while (box.children.length > 1) box.removeChild(box.lastChild);
@@ -849,6 +1193,10 @@
     }
     async function switchSession(sid, ev) {
       if (ev && ev.target && ev.target.closest('.si-actions')) return;
+      // 切换会话前停掉朗读和未完成的生成
+      try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch(e) {}
+      if (currentSpeakBtn) { currentSpeakBtn.classList.remove('speaking'); currentSpeakBtn.textContent='🔊'; currentSpeakBtn = null; }
+      if (currentStreamCtrl) { try { currentStreamCtrl.abort(); } catch(e) {} }
       currentSessionId = sid;
       // 拉历史
       try {
@@ -881,6 +1229,7 @@
               bub.innerHTML = renderMarkdown(m.content || '', cites) +
                               (cites.length ? renderCitationCards(cites) : '');
               wrap.appendChild(bub);
+              attachAIActions(wrap, m.content || '');
               box.appendChild(wrap);
               aiHistory.push({role: 'assistant', content: m.content});
             }
@@ -999,7 +1348,9 @@
     });
     /* 拖拽图片 */
     (function setupDropImage(){
+      try {
       const panel = document.getElementById('ai-panel');
+      if (!panel) return;
       panel.addEventListener('dragover', e => {
         if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) {
           e.preventDefault();
@@ -1015,8 +1366,13 @@
         e.preventDefault();
         uploadImageFile(e.dataTransfer.files[0]);
       });
+      } catch(e) { console.warn('setupDropImage failed:', e); }
     })();
+
+    /* 渲染空对话欢迎语（基于 aiPersona） */
+    function renderEmptyChat() {
       const box = document.getElementById('ai-messages');
+      if (!box) return;
       box.innerHTML = '';
       const welcome = document.createElement('div');
       welcome.className = 'ai-msg ai';
@@ -1026,12 +1382,20 @@
       welcome.appendChild(av);
       const bub = document.createElement('div');
       bub.className = 'ai-bubble-msg';
-      bub.innerHTML = `🐬 <b>湾湾鲸</b>来啦！我是粤港澳大湾区的小海豚，专门帮应届毕业生找驿站、查政策~<br/><br/>
-        可以问我：<br/>
-        • <span class="quick" onclick="quickAsk(this)">我是 2026 届，深圳哪些驿站适合我？</span><br/>
-        • <span class="quick" onclick="quickAsk(this)">广州人才补贴怎么申请？</span><br/>
-        • <span class="quick" onclick="quickAsk(this)">东莞松山湖驿站联系方式？</span><br/>
-        • <span class="quick" onclick="quickAsk(this)">驿站码丢了怎么办？</span>`;
+      // 取 persona 数据（含兜底）
+      const greeting = (aiPersona && aiPersona.greeting) ||
+        '🐬 <b>湾湾鲸</b>来啦！我是粤港澳大湾区的小海豚，专门帮应届毕业生找驿站、查政策~';
+      const asks = (aiPersona && Array.isArray(aiPersona.quick_asks) && aiPersona.quick_asks.length)
+        ? aiPersona.quick_asks.slice(0, 4)
+        : [];
+      let asksHtml = '';
+      if (asks.length) {
+        const items = asks.map(q =>
+          `• <span class="quick" onclick="quickAsk(this)">${escapeHTML(q)}</span>`
+        ).join('<br/>');
+        asksHtml = `<br/><br/>可以问我：<br/>${items}`;
+      }
+      bub.innerHTML = greeting + asksHtml;
       welcome.appendChild(bub);
       box.appendChild(welcome);
     }
@@ -1098,6 +1462,7 @@
 
     /* 拖动：抓 .ai-head 移动整个面板 */
     (function setupDrag(){
+      try {
       const handle = document.getElementById('ai-drag-handle');
       const panel  = document.getElementById('ai-panel');
       if (!handle || !panel) return;
@@ -1140,10 +1505,12 @@
           savePanelGeometry();
         }
       });
+      } catch(e) { console.warn('setupDrag failed:', e); }
     })();
 
     /* 缩放：抓右下角手柄 */
     (function setupResize(){
+      try {
       const handle = document.getElementById('ai-resize-handle');
       const panel  = document.getElementById('ai-panel');
       if (!handle || !panel) return;
@@ -1181,6 +1548,7 @@
           savePanelGeometry();
         }
       });
+      } catch(e) { console.warn('setupResize failed:', e); }
     })();
 
     let providersLoaded = false;
@@ -1230,6 +1598,11 @@
     }
 
     async function sendAI() {
+      // 如果当前正在生成中：第二次点击"发送"按钮应当作"停止生成"
+      if (currentStreamCtrl) {
+        try { currentStreamCtrl.abort(); } catch(e) {}
+        return;
+      }
       const ta = document.getElementById('ai-q');
       const q = ta.value.trim();
       // 允许仅图片提问（无文字）
@@ -1252,7 +1625,10 @@
       const usedImage = pendingImage;
       clearImagePreview();
       const btn = document.getElementById('ai-send');
-      btn.disabled = true; btn.textContent = '思考中';
+      // 进入"生成中"状态：按钮变成 ⏹ 停止
+      btn.classList.add('streaming');
+      btn.textContent = '⏹ 停止';
+      btn.disabled = false;
 
       const provider_id = document.getElementById('ai-provider').value || null;
       const use_web = document.getElementById('ai-web').checked;
@@ -1282,6 +1658,11 @@
       // 浮球进入"思考"
       setMascotState('thinking');
 
+      // 用 AbortController 让"停止生成"按钮可以中断 SSE
+      const ctrl = new AbortController();
+      currentStreamCtrl = ctrl;
+      let aborted = false;
+
       let fullText = '';
       let firstDelta = true;
       let citations = [];
@@ -1293,7 +1674,8 @@
             question: actualQuestion, history: aiHistory.slice(-8),
             provider_id, use_web, use_knowledge,
             session_id: currentSessionId,
-          })
+          }),
+          signal: ctrl.signal,
         });
         if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status);
         const reader = resp.body.getReader();
@@ -1345,10 +1727,26 @@
         // 流结束刷新会话列表（更新最后消息预览）
         loadSessions();
       } catch (e) {
-        bubble.innerHTML = '⚠️ 网络异常：' + escapeHTML(e.message || e);
+        if (e && (e.name === 'AbortError' || /aborted/i.test(e.message || ''))) {
+          aborted = true;
+          // 用户主动停止：保留已生成内容，加个提示
+          const tail = fullText ? '<br/><span style="color:#ff8b9a;font-size:12px;">⏹ 已停止生成</span>'
+                                 : '<span style="color:#ff8b9a;">⏹ 已停止生成</span>';
+          bubble.innerHTML = renderMarkdown(fullText, citations) + tail;
+          if (fullText) aiHistory.push({role:'assistant', content: fullText});
+          loadSessions();
+        } else {
+          bubble.innerHTML = '⚠️ 网络异常：' + escapeHTML(e.message || e);
+        }
       } finally {
-        btn.disabled = false; btn.textContent = '发送';
+        currentStreamCtrl = null;
+        btn.classList.remove('streaming');
+        btn.disabled = false;
+        btn.textContent = '发送';
         setMascotState(null);  // 回到呼吸态
+        // AI 消息生成完毕，挂工具栏（复制/朗读/重新生成）
+        aiWrap.classList.remove('thinking', 'speaking');
+        attachAIActions(aiWrap, fullText || '');
       }
     }
 
@@ -1407,6 +1805,8 @@
       if (text) html += renderMarkdown(text);
       bubble.innerHTML = html || '(图片提问)';
       wrap.appendChild(bubble);
+      // 工具栏：复制 / 重新编辑
+      attachUserActions(wrap, text || '');
       const box = document.getElementById('ai-messages');
       box.appendChild(wrap);
       box.scrollTop = box.scrollHeight;
@@ -1426,6 +1826,9 @@
       bubble.className = 'ai-bubble-msg';
       bubble.innerHTML = isHTML ? text : renderMarkdown(text);
       wrap.appendChild(bubble);
+      // 工具栏
+      if (role === 'ai') attachAIActions(wrap, text || '');
+      else               attachUserActions(wrap, text || '');
       const box = document.getElementById('ai-messages');
       box.appendChild(wrap);
       box.scrollTop = box.scrollHeight;

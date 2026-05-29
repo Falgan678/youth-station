@@ -13,7 +13,7 @@ from flask_login import (LoginManager, current_user, login_required, login_user,
 from werkzeug.utils import secure_filename
 
 from config import Config
-from models import AccessCode, AccessLog, Admin, AIProvider, CityPolicy, KnowledgeEntry, Station, db
+from models import AccessCode, AccessLog, Admin, AIPersona, AIProvider, CityPolicy, KnowledgeEntry, Station, db
 from utils import (amap_geocode, build_import_template, export_stations_to_excel,
                    generate_code, parse_city_district, read_stations_from_excel,
                    safe_filename)
@@ -39,13 +39,22 @@ def create_app() -> Flask:
     def code_required(view):
         @wraps(view)
         def wrapped(*args, **kwargs):
+            def _unauth():
+                # API 请求（路径以 /api/ 开头，或显式要 JSON）：返回 401 JSON
+                if request.path.startswith("/api/") or \
+                   "application/json" in (request.headers.get("Accept") or ""):
+                    return jsonify({"ok": False, "code": "auth_required",
+                                    "msg": "请先登录或验证驿站码"}), 401
+                # 页面请求：维持原行为，重定向到登录页
+                return redirect(url_for("portal_login"))
+
             cid = session.get("code_id")
             if not cid:
-                return redirect(url_for("portal_login"))
+                return _unauth()
             ac = AccessCode.query.get(cid)
             if not ac or not ac.is_valid():
                 session.pop("code_id", None)
-                return redirect(url_for("portal_login"))
+                return _unauth()
             return view(*args, **kwargs)
         return wrapped
 
@@ -224,6 +233,30 @@ def create_app() -> Flask:
         """前端拉取可用模型列表（不含 Key）"""
         rows = AIProvider.query.filter_by(enabled=True).order_by(AIProvider.sort, AIProvider.id).all()
         return jsonify({"ok": True, "items": [p.to_dict_public() for p in rows]})
+
+    @app.route("/api/ai/persona")
+    @code_required
+    def api_ai_persona():
+        """前端打开浮窗时拉取湾湾鲸的开场白和示例问题（不暴露 system prompt）。"""
+        p = AIPersona.query.filter_by(enabled=True).order_by(AIPersona.id).first()
+        if not p:
+            # 没配置过：返回内置默认值，避免前端空白
+            return jsonify({
+                "ok": True,
+                "data": {
+                    "name": "湾湾鲸",
+                    "emoji": "🐬",
+                    "tagline": "AI 驿站助手",
+                    "greeting": "🐬 <b>湾湾鲸</b>来啦！我是粤港澳大湾区的小海豚，专门帮应届毕业生找驿站、查政策~",
+                    "quick_asks": [
+                        "我是 2026 届，深圳哪些驿站适合我？",
+                        "广州人才补贴怎么申请？",
+                        "东莞松山湖驿站联系方式？",
+                        "驿站码丢了怎么办？",
+                    ],
+                },
+            })
+        return jsonify({"ok": True, "data": p.to_public_dict()})
 
     @app.route("/api/ai/chat", methods=["POST"])
     @code_required
@@ -1011,6 +1044,111 @@ def create_app() -> Flask:
         if err and not chunks:
             return jsonify({"ok": False, "msg": err})
         return jsonify({"ok": True, "answer": ("".join(chunks))[:200]})
+
+    # ===== 湾湾鲸角色 / 开场白 / 追问策略 配置 =====
+    DEFAULT_PERSONA_PROMPT = (
+        "你是「湾湾鲸」🐬——粤港澳大湾区的中华白海豚（粉色海豚），头顶有橙色和绿色珊瑚芽，"
+        "专门帮应届毕业生使用青年人才驿站的 AI 客服。\n\n"
+        "【你的人设】\n"
+        "- 形象：粉色中华白海豚，圆滚滚大脑袋、酒红色大眼睛、白色腮帮、头顶橙绿珊瑚芽\n"
+        "- 自称：可以偶尔说\"小鲸/湾湾\"，但不要太频繁，避免出戏\n"
+        "- 语气：亲切、活泼、专业，带着海豚的灵动感；偶尔加 🐬 / 💧 / 📍 等小表情\n"
+        "- 背景：你是 2025 粤港澳大湾区全运会吉祥物的 AI 化身，对珠三角格外熟悉\n\n"
+        "【你的能力范围】\n"
+        "1. 介绍珠三角各市青年人才驿站的位置、申请方式、入住条件\n"
+        "2. 讲解人才认定、生活补贴、租房补贴、落户等政策入口\n"
+        "3. 解答\"我能不能申请\"\"怎么联系\"\"住几天\"\"需要什么材料\"等具体问题\n\n"
+        "【回答规则】\n"
+        "- **引用规范**：当你的回答内容来自下方【知识库检索】时，请在对应句末以 [1]、[2] 等角标标注引用编号；不要编造引用编号。\n"
+        "- 优先基于下方【知识库】回答；知识库没有的信息要明确说\"我也没查到详细资料，建议直接打电话核实\"。\n"
+        "- 给出具体可执行的建议，比如\"广州的话推荐看 XX 驿站，电话 138...，地址 XXX\"。\n"
+        "- 涉及政策时附上官方链接（从知识库取）。\n"
+        "- 回答要简洁（不超过 250 字），分点呈现，避免空话套话。\n"
+        "- 当问题超出范围（让你写代码、聊天气、问其他城市），礼貌引导回大湾区驿站话题。\n"
+        "- 永远不要假装自己是 ChatGPT/DeepSeek/通义千问；你就是「湾湾鲸」。"
+    )
+    DEFAULT_PERSONA_GREETING = (
+        "🐬 <b>湾湾鲸</b>来啦！我是粤港澳大湾区的小海豚，"
+        "专门帮应届毕业生找驿站、查政策~"
+    )
+    DEFAULT_PERSONA_QUICKS = [
+        "我是 2026 届，深圳哪些驿站适合我？",
+        "广州人才补贴怎么申请？",
+        "东莞松山湖驿站联系方式？",
+        "驿站码丢了怎么办？",
+    ]
+
+    def _get_or_create_persona():
+        p = AIPersona.query.order_by(AIPersona.id).first()
+        if not p:
+            p = AIPersona(
+                name="湾湾鲸",
+                emoji="🐬",
+                tagline="AI 驿站助手",
+                system_prompt=DEFAULT_PERSONA_PROMPT,
+                greeting=DEFAULT_PERSONA_GREETING,
+                quick_asks=json.dumps(DEFAULT_PERSONA_QUICKS, ensure_ascii=False),
+                followup_enabled=True,
+                followup_strategy="smart",
+                followup_max=2,
+                followup_template="",
+                enabled=True,
+            )
+            db.session.add(p)
+            db.session.commit()
+        return p
+
+    @app.route("/admin/ai/persona", methods=["GET"])
+    @login_required
+    def admin_ai_persona():
+        p = _get_or_create_persona()
+        return render_template("admin_ai_persona.html", persona=p,
+                                quick_asks_text="\n".join(p.get_quick_asks()),
+                                default_prompt=DEFAULT_PERSONA_PROMPT)
+
+    @app.route("/admin/ai/persona/save", methods=["POST"])
+    @login_required
+    def admin_ai_persona_save():
+        p = _get_or_create_persona()
+        p.name = (request.form.get("name") or "湾湾鲸").strip()[:64]
+        p.emoji = (request.form.get("emoji") or "🐬").strip()[:16]
+        p.tagline = (request.form.get("tagline") or "AI 驿站助手").strip()[:120]
+        p.system_prompt = (request.form.get("system_prompt") or "").strip()
+        p.greeting = (request.form.get("greeting") or "").strip()
+        # quick_asks：textarea 一行一条
+        raw = request.form.get("quick_asks") or ""
+        items = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+        p.quick_asks = json.dumps(items[:12], ensure_ascii=False)
+        # 追问策略
+        p.followup_enabled = request.form.get("followup_enabled") == "1"
+        strategy = (request.form.get("followup_strategy") or "smart").strip()
+        if strategy not in ("off", "smart", "always"):
+            strategy = "smart"
+        p.followup_strategy = strategy
+        try:
+            p.followup_max = max(1, min(5, int(request.form.get("followup_max") or 2)))
+        except Exception:
+            p.followup_max = 2
+        p.followup_template = (request.form.get("followup_template") or "").strip()
+        p.enabled = request.form.get("enabled") == "1"
+        db.session.commit()
+        flash("湾湾鲸 角色设定已保存")
+        return redirect(url_for("admin_ai_persona"))
+
+    @app.route("/admin/ai/persona/reset", methods=["POST"])
+    @login_required
+    def admin_ai_persona_reset():
+        """一键恢复默认 system prompt / 开场白 / 示例问题"""
+        p = _get_or_create_persona()
+        p.system_prompt = DEFAULT_PERSONA_PROMPT
+        p.greeting = DEFAULT_PERSONA_GREETING
+        p.quick_asks = json.dumps(DEFAULT_PERSONA_QUICKS, ensure_ascii=False)
+        p.followup_enabled = True
+        p.followup_strategy = "smart"
+        p.followup_max = 2
+        p.followup_template = ""
+        db.session.commit()
+        return jsonify({"ok": True})
 
     # ===== 知识库管理 =====
     @app.route("/admin/knowledge")

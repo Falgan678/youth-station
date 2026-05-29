@@ -444,6 +444,15 @@ def get_active_provider(provider_id=None):
     return p
 
 
+def get_active_persona():
+    """读取数据库里的湾湾鲸配置。读不到则返回 None（调用方走默认 SYSTEM_PROMPT）。"""
+    try:
+        from models import AIPersona
+        return AIPersona.query.filter_by(enabled=True).order_by(AIPersona.id).first()
+    except Exception:
+        return None
+
+
 def _build_messages(question: str, history: list, use_web: bool, use_knowledge: bool):
     """构建 messages 并返回 (messages, citations)"""
     kb, citations = _build_kb_context(question, use_knowledge=use_knowledge)
@@ -451,7 +460,18 @@ def _build_messages(question: str, history: list, use_web: bool, use_knowledge: 
     parts = [kb]
     if web:
         parts.append(web)
-    sys_content = SYSTEM_PROMPT + "\n\n" + "\n\n".join(parts)
+
+    # 优先用数据库里的角色设定，回退到内置 SYSTEM_PROMPT
+    persona = get_active_persona()
+    if persona and (persona.system_prompt or "").strip():
+        sys_main = persona.system_prompt.strip()
+        directive = persona.build_followup_directive()
+        if directive:
+            sys_main += "\n\n" + directive
+    else:
+        sys_main = SYSTEM_PROMPT
+
+    sys_content = sys_main + "\n\n" + "\n\n".join(parts)
     messages = [{"role": "system", "content": sys_content}]
     for h in (history or [])[-6:]:
         if h.get("role") in ("user", "assistant") and h.get("content"):

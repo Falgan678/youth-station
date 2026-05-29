@@ -183,6 +183,72 @@ class AIProvider(db.Model):
         }
 
 
+class AIPersona(db.Model):
+    """AI 助手"湾湾鲸"角色与开场白配置（单例：通常只保留 id=1 一行）"""
+    __tablename__ = "ai_persona"
+    id = db.Column(db.Integer, primary_key=True)
+    # 展示信息
+    name = db.Column(db.String(64), default="湾湾鲸")           # 助手名
+    emoji = db.Column(db.String(16), default="🐬")              # 头像表情/前缀
+    tagline = db.Column(db.String(120), default="AI 驿站助手")  # 副标题
+    # 真正喂给模型的角色设定（system prompt 主体）
+    system_prompt = db.Column(db.Text, default="")
+    # 开场白（HTML 片段，支持 <br/> <b> 等简单标签）
+    greeting = db.Column(db.Text, default="")
+    # 快捷示例问题，JSON 数组：["问题1","问题2",...]
+    quick_asks = db.Column(db.Text, default="[]")
+    # ===== 追问/反问设置 =====
+    followup_enabled = db.Column(db.Boolean, default=True)
+    # off=不追问；smart=信息不足时追问；always=每次先确认再回答
+    followup_strategy = db.Column(db.String(16), default="smart")
+    followup_max = db.Column(db.Integer, default=2)             # 单次最多追问几条
+    followup_template = db.Column(db.Text, default="")          # 额外措辞模板（可空）
+    # 元信息
+    enabled = db.Column(db.Boolean, default=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # ---------- helpers ----------
+    def get_quick_asks(self) -> list:
+        import json
+        try:
+            v = json.loads(self.quick_asks or "[]")
+            return [str(x).strip() for x in v if str(x).strip()]
+        except Exception:
+            return []
+
+    def to_public_dict(self) -> dict:
+        """暴露给前台浮窗的安全字段（不含 system_prompt）"""
+        return {
+            "name": self.name or "湾湾鲸",
+            "emoji": self.emoji or "🐬",
+            "tagline": self.tagline or "AI 驿站助手",
+            "greeting": self.greeting or "",
+            "quick_asks": self.get_quick_asks(),
+        }
+
+    def build_followup_directive(self) -> str:
+        """根据追问策略生成附加的 system 指令片段"""
+        if not self.followup_enabled or self.followup_strategy == "off":
+            return ""
+        n = max(1, int(self.followup_max or 1))
+        if self.followup_strategy == "always":
+            head = (
+                f"【追问策略 = 始终先确认】在正式回答前，请先用编号列表向用户提出 {n} 个以内"
+                "最关键的澄清问题（例如所在城市、毕业届数、学历、是否本地户籍等），"
+                "等用户补充后再给出建议。问题要短、聚焦、对用户友好。"
+            )
+        else:  # smart
+            head = (
+                f"【追问策略 = 智能反问】当用户问题缺少关键信息（城市/届数/学历/具体诉求等）"
+                f"以致无法精准回答时，请先用 {n} 个以内的编号列表向用户提出最关键的澄清问题，"
+                "再等用户补充。如果信息已经足够，请直接作答，不要无谓追问。"
+            )
+        extra = (self.followup_template or "").strip()
+        if extra:
+            head += "\n补充：" + extra
+        return head
+
+
 class KnowledgeEntry(db.Model):
     """通用知识库（FAQ / 入住须知 / 常见问题）"""
     __tablename__ = "knowledge_entry"

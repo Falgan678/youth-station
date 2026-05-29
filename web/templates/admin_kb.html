@@ -216,19 +216,41 @@ document.querySelectorAll('.kb-tab').forEach(t => {
 });
 async function reparse(id) {
   if (!confirm('重新解析此资料？')) return;
-  const r = await fetch(`/admin/kb/${id}/reparse`, {method: 'POST'});
-  const j = await r.json();
-  alert((j.ok ? '✅ ' : '❌ ') + (j.msg || ''));
-  location.reload();
+  try {
+    const r = await fetch(`/admin/kb/${id}/reparse`, {method: 'POST'});
+    const j = await r.json().catch(() => ({ok:false, msg:'返回非 JSON：' + r.status}));
+    alert((j.ok ? '✅ ' : '❌ ') + (j.msg || (j.ok ? '已重解析' : '失败')));
+    if (j.ok) location.reload();
+  } catch(e) { alert('❌ 网络异常：' + e); }
 }
 async function toggleDoc(id) {
-  await fetch(`/admin/kb/${id}/toggle`, {method: 'POST'});
-  location.reload();
+  try {
+    const r = await fetch(`/admin/kb/${id}/toggle`, {method: 'POST'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    location.reload();
+  } catch(e) { alert('❌ 切换失败：' + e); }
 }
 async function delDoc(id) {
   if (!confirm('确定删除？所有切块和原始文件都会被移除。')) return;
-  await fetch(`/admin/kb/${id}/delete`, {method: 'POST'});
-  location.reload();
+  try {
+    const r = await fetch(`/admin/kb/${id}/delete`, {method: 'POST'});
+    let j = null;
+    try { j = await r.json(); } catch(e) {}
+    if (!r.ok || !j || !j.ok) {
+      alert('❌ 删除失败：HTTP ' + r.status + (j && j.msg ? ' · ' + j.msg : ''));
+      return;
+    }
+    // 直接把那一行从 DOM 里删掉，避免 location.reload 被某些扩展拦截
+    const row = document.querySelector(`tr [onclick="delDoc(${id})"]`);
+    if (row) {
+      const tr = row.closest('tr');
+      if (tr) tr.remove();
+    }
+    // 同时静默刷新，确保左上角统计/分类下拉同步
+    setTimeout(() => location.reload(), 250);
+  } catch(e) {
+    alert('❌ 网络异常：' + (e.message || e));
+  }
 }
 </script>
 {% endblock %}

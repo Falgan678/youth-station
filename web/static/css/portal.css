@@ -317,3 +317,98 @@ body:has(.login-wrap) .theme-toggle { top: 18px; right: 18px; }
 }
 
 /* 高德地图工具按钮在白天模式下保留地图自身样式（不强行反色） */
+
+/* =================== 地图详情浮动卡 =================== */
+.map-area { position: relative; }
+.detail-card {
+  position: absolute; top: 16px; right: 16px;
+  width: 380px; max-width: calc(100% - 32px);
+  max-height: calc(100% - 32px);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  z-index: 6;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  animation: dcIn .2s cubic-bezier(.4,1.5,.5,1);
+}
+@keyframes dcIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+.detail-card .dc-close {
+  position: absolute; top: 8px; right: 10px;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(0,0,0,0.18); color: var(--text);
+  border: none; cursor: pointer; font-size: 18px; line-height: 1;
+  z-index: 2;
+}
+.detail-card .dc-close:hover { background: rgba(255,80,100,0.45); color: #fff; }
+:root[data-theme="light"] .detail-card .dc-close { background: rgba(15,23,42,0.06); color: #475569; }
+:root[data-theme="light"] .detail-card .dc-close:hover { background: #fee2e2; color: #b91c1c; }
+
+.detail-card .dc-body {
+  padding: 22px 22px 20px;
+  overflow-y: auto;
+  max-height: 100%;
+  scrollbar-width: thin;
+}
+.dc-name {
+  font-size: 18px; font-weight: 700; color: var(--text);
+  margin: 0 28px 10px 0; line-height: 1.4;
+}
+.dc-meta {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.dc-addr {
+  background: var(--addr-bg); border-radius: 10px;
+  padding: 10px 14px; font-size: 13px; line-height: 1.7;
+  color: var(--text); margin-bottom: 14px;
+  border-left: 3px solid var(--primary);
+}
+.dc-section {
+  font-size: 12px; font-weight: 700; letter-spacing: .08em;
+  color: var(--text-dim); text-transform: uppercase;
+  margin: 14px 0 8px; padding-left: 8px;
+  border-left: 2px solid var(--primary-2);
+}
+.dc-info-row {
+  display: flex; gap: 10px; padding: 7px 0;
+  font-size: 13px; line-height: 1.6; color: var(--text);
+  border-bottom: 1px dashed var(--border);
+}
+.dc-info-row:last-of-type { border-bottom: none; }
+.dc-info-row .ir-label { color: var(--text-dim); flex-shrink: 0; min-width: 64px; font-weight: 500; }
+.dc-info-row .ir-value { flex: 1; }
+.dc-info-row .ir-value a { color: var(--primary-2); }
+.dc-list { padding-left: 18px; margin: 4px 0; font-size: 13px; line-height: 1.7; color: var(--text); }
+.dc-list li { margin-bottom: 2px; }
+.dc-actions {
+  display: flex; gap: 8px; margin-top: 16px;
+}
+.dc-btn {
+  flex: 1; padding: 10px 14px; border-radius: 10px;
+  border: none; cursor: pointer; font-size: 13px; font-weight: 600;
+  text-align: center; text-decoration: none;
+  transition: transform .15s, box-shadow .15s, filter .15s;
+}
+.dc-btn.primary {
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(44,123,255,0.32);
+}
+.dc-btn.primary:hover { transform: translateY(-1px); filter: brightness(1.06); }
+.dc-btn.ghost {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--primary-2);
+}
+.dc-btn.ghost:hover { background: var(--addr-bg); }
+.dc-empty { color: var(--text-dim); font-size: 13px; padding: 20px 0; text-align: center; }
+
+@media (max-width: 900px) {
+  .detail-card {
+    top: auto; right: 0; left: 0; bottom: 0;
+    width: 100%; max-width: none;
+    max-height: 60vh;
+    border-radius: 14px 14px 0 0;
+  }
+}

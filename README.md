@@ -11,7 +11,20 @@
 
 ---
 
-## 🚀 在线预览（一键体验）
+## 🚀 在线预览
+
+### 🌐 直接访问（无需任何配置）
+
+| 环境 | 地址 | 说明 |
+|------|------|------|
+| **生产站点** | [**https://yuexinys.cn**](https://yuexinys.cn) | 正式上线，HTTPS 加密，ICP 已备案 |
+| **开发预览** | [*Cloud Studio 临时链接*] | 每次启动工作区会变，详见下方 |
+
+> 💡 **普通用户**：直接点击上方「生产站点」链接即可使用，无需安装任何东西。
+
+---
+
+### 🛠️ 开发者：一键打开云端 IDE
 
 [![Open in Cloud Studio](https://cs-res.codehub.cn/common/assets/icon-badge.svg)](https://cloudstudio.net/?gitUrl=https%3A%2F%2Fgithub.com%2FFalgan678%2Fyouth-station.git)
 [![Open in Gitpod](https://img.shields.io/badge/Gitpod-Ready--to--Code-908a85?logo=gitpod)](https://gitpod.io/#https://github.com/Falgan678/youth-station)

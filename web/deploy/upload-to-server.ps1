@@ -1,53 +1,67 @@
-# ============================================================
-#  本地 → 服务器 一键上传脚本
-#  用法：powershell -ExecutionPolicy Bypass -File deploy\upload-to-server.ps1
-# ============================================================
+# Upload project to Tencent Cloud (Windows PowerShell 5.1+)
+# Run from project root:
+#   powershell -ExecutionPolicy Bypass -File web\deploy\upload-to-server.ps1
+
 param(
     [string]$ServerIP = "119.91.112.109",
     [string]$ServerUser = "root",
-    [string]$RemoteDir = "/opt/youth-station"
+    [string]$RemoteDir = "/opt/youth-station",
+    [string]$Domain = "yuexinys.cn"
 )
 
 $ErrorActionPreference = "Stop"
-$ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 
-Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "  青年驿站 -> 腾讯云轻量服务器" -ForegroundColor Cyan
-Write-Host "  目标: $ServerUser@$ServerIP : $RemoteDir" -ForegroundColor Cyan
-Write-Host "============================================" -ForegroundColor Cyan
-
-# 1) 创建目录
-Write-Host "`n[1/4] 准备远程目录..." -ForegroundColor Yellow
-ssh "$ServerUser@$ServerIP" "mkdir -p $RemoteDir/web"
-
-# 2) 上传 web/ 目录（排除虚拟环境/数据库/缓存）
-Write-Host "`n[2/4] 上传 web 代码..." -ForegroundColor Yellow
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ProjectRoot = Split-Path -Parent (Split-Path -Parent $ScriptDir)
 $WebDir = Join-Path $ProjectRoot "web"
-# 用 tar+ssh 方式做"忽略式"上传
-Push-Location $ProjectRoot
-tar --exclude='web/.venv' --exclude='web/data' --exclude='web/uploads' `
-    --exclude='web/__pycache__' --exclude='web/**/__pycache__' --exclude='web/.gitignore' `
-    -czf - web | ssh "$ServerUser@$ServerIP" "tar -xzf - -C $RemoteDir"
-Pop-Location
 
-# 3) 上传所有 Excel 数据
-Write-Host "`n[3/4] 上传 Excel 数据..." -ForegroundColor Yellow
-$xlsx = Get-ChildItem -Path $ProjectRoot -Filter "*.xlsx" -File
-if ($xlsx.Count -gt 0) {
-    foreach ($f in $xlsx) {
-        Write-Host "   - $($f.Name)"
-        scp $f.FullName "${ServerUser}@${ServerIP}:${RemoteDir}/"
-    }
-} else {
-    Write-Host "   (无 xlsx 文件)" -ForegroundColor Gray
+if (-not (Test-Path $WebDir)) {
+    throw "web folder not found: $WebDir"
 }
 
-# 4) 提示
-Write-Host "`n[4/4] 上传完成！" -ForegroundColor Green
+Write-Host "============================================" -ForegroundColor Cyan
+Write-Host "  Upload to: ${ServerUser}@${ServerIP}" -ForegroundColor Cyan
+Write-Host "  Local web: $WebDir" -ForegroundColor Cyan
+Write-Host "============================================" -ForegroundColor Cyan
+
 Write-Host ""
-Write-Host "下一步：登录服务器执行部署" -ForegroundColor Cyan
-Write-Host "  ssh $ServerUser@$ServerIP"
-Write-Host "  cd $RemoteDir/web/deploy && sudo bash deploy.sh"
+Write-Host "[1/4] Create remote folder..." -ForegroundColor Yellow
+ssh -o StrictHostKeyChecking=accept-new ($ServerUser + "@" + $ServerIP) ("mkdir -p " + $RemoteDir + "/web")
+
 Write-Host ""
-Write-Host "如果是日常更新（仅改了代码或数据）："
-Write-Host "  cd $RemoteDir/web/deploy && sudo bash update.sh"
+Write-Host "[2/4] Upload web code (1-3 min)..." -ForegroundColor Yellow
+$StageRoot = Join-Path $env:TEMP ("yst-upload-" + (Get-Date -Format "yyyyMMddHHmmss"))
+$StageWeb = Join-Path $StageRoot "web"
+New-Item -ItemType Directory -Path $StageWeb -Force | Out-Null
+
+robocopy $WebDir $StageWeb /E /XD .venv data uploads __pycache__ /XF *.pyc /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
+if ($LASTEXITCODE -ge 8) {
+    Remove-Item $StageRoot -Recurse -Force -ErrorAction SilentlyContinue
+    throw ("robocopy failed, code " + $LASTEXITCODE)
+}
+
+$remoteTarget = $ServerUser + "@" + $ServerIP + ":" + $RemoteDir + "/"
+scp -r $StageWeb $remoteTarget
+Remove-Item $StageRoot -Recurse -Force -ErrorAction SilentlyContinue
+
+Write-Host ""
+Write-Host "[3/4] Upload Excel files..." -ForegroundColor Yellow
+$xlsx = Get-ChildItem -Path $ProjectRoot -Filter "*.xlsx" -File -ErrorAction SilentlyContinue
+if ($xlsx) {
+    foreach ($f in $xlsx) {
+        Write-Host ("   - " + $f.Name)
+        scp $f.FullName ($ServerUser + "@" + $ServerIP + ":" + $RemoteDir + "/")
+    }
+} else {
+    Write-Host "   (no xlsx, skip)" -ForegroundColor Gray
+}
+
+Write-Host ""
+Write-Host "[4/4] Upload OK!" -ForegroundColor Green
+Write-Host ""
+Write-Host "Next step 1 - login:" -ForegroundColor Cyan
+Write-Host ("  ssh " + $ServerUser + "@" + $ServerIP)
+Write-Host ""
+Write-Host "Next step 2 - on server run:" -ForegroundColor Cyan
+Write-Host ("  cd " + $RemoteDir + "/web/deploy")
+Write-Host ("  sudo DOMAIN=" + $Domain + " bash deploy.sh")
